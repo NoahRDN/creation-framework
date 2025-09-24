@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
          http://java.sun.com/xml/ns/javaee/web-app_4_0.xsd"
          version="4.0">
-    <display-name>Application pour creation de framework personnel</display-name>
+    <display-name>Application pour teste le collaboration entre des servlets</display-name>
 
     <servlet>
         <servlet-name>FrontControllerServlet</servlet-name>
