@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+                             https://jakarta.ee/xml/ns/jakartaee/web-app_5_0.xsd"
+         version="5.0">
+
+    <display-name>Application pour creation de framework personnel</display-name>
+
+    <!-- ===== Servlet principale ===== -->
+    <servlet>
+        <servlet-name>FrontControllerServlet</servlet-name>
+        <servlet-class>edu.noah.monframework.servlet.FrontControllerServlet</servlet-class>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>FrontControllerServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <!-- ===== Filtre global ===== -->
+    <filter>
+        <filter-name>MyFilter</filter-name>
+        <filter-class>edu.noah.monframework.filter.MyFilter</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>MyFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+</web-app>
