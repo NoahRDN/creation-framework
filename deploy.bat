@@ -13,104 +13,81 @@ for /f "usebackq tokens=1,* delims==" %%a in (".env") do (
 )
 
 :: Vérification
-echo Nom du projet: %project_name%
-echo Mode de compilation: %mode%
 echo Dossier de travail: %work_dir%
-echo Type de sortie: %OUTPUT_TYPE%
 echo Chemin de sortie JAR: %jar_output_path%
-echo Dossier de build: %build%
+echo ==========================
 
 pause
 
 :: -------------------------
-:: Nettoyage
-:: -------------------------
-if exist "%build%" rmdir /s /q "%build%"
-mkdir "%build%\WEB-INF\classes"
-mkdir "%build%\WEB-INF\lib"
-
-
-:: -------------------------
-:: Compilation Java (uniquement si mode = dev)
-:: -------------------------
-if /i "%mode%"=="dev" (
-    echo Compilation des fichiers Java...
-    dir /s /b "%src%\*.java" > "%build%\sources.txt"
-
-    for %%x in ("%build%\sources.txt") do if %%~zx==0 (
-        echo ERREUR : Aucun fichier Java trouvé dans %src%
-        del "%build%\sources.txt"
-        pause
-        exit /b 1
-    )
-
-    javac -cp "%lib%\*" -d "%build%\WEB-INF\classes" @"%build%\sources.txt"
-    del "%build%\sources.txt"
-) else (
-    echo Mode test actif, compilation Java ignorée.
-)
-
-
-:: -------------------------
-:: Copie des librairies
-:: -------------------------
-xcopy "%lib%\*" "%build%\WEB-INF\lib\" /Y
-
-
-:: -------------------------
-:: WAR
-:: -------------------------
-if /i "%OUTPUT_TYPE%"=="war" (
-    :: Vérifie que %web% est défini
-    if not defined web (
-        echo ERREUR : La variable %%web%% n'est pas définie dans .env
-        pause
-        exit /b 1
-    )
-
-
-    if not exist "%web%" (
-        echo ERREUR : Le dossier web "%web%" est introuvable
-        pause
-        exit /b 1
-    )
-
-
-    @REM :: Copie les fichiers web (hors WEB-INF)
-    @REM echo Copie des fichiers web (hors WEB-INF)...
-    @REM if exist exclude-webinf.txt (
-    @REM     xcopy "%web%\*" "%build%\" /E /I /Y /EXCLUDE:exclude-webinf.txt
-    @REM ) else (
-    @REM     xcopy "%web%\*" "%build%\" /E /I /Y
-    @REM )
-
-    :: Copie web.xml dans WEB-INF
-    if exist "%web%\WEB-INF\web.xml" (
-        echo Copie de web.xml...
-        xcopy "%web%\WEB-INF\web.xml" "%build%\WEB-INF\" /Y
-    ) else (
-        echo ATTENTION : web.xml introuvable dans %web%\WEB-INF\
-    )
-
-    :: Création du WAR
-    echo Création du WAR...
-    jar -cvf "%work_dir%\%project_name%.war" -C "%build%" .
-
-    :: Déploiement vers Tomcat
-    echo Déploiement vers Tomcat...
-    copy /Y "%work_dir%\%project_name%.war" "%tomcat_webapps%"
-    echo Projet déployé avec succès.
-
-)
-
-
-:: -------------------------
 :: JAR
 :: -------------------------
-if /i "%OUTPUT_TYPE%"=="jar" (
-    echo Création du JAR...
-    jar -cvf "%jar_output_path%\%project_name%.jar" -C "%build%\WEB-INF\classes" .
-    echo JAR généré avec succès.
+
+:: If a Maven project exists, build it and copy dependencies first
+if exist "%work_dir%\pom.xml" (
+    echo Maven project detected in %work_dir% - running build and copying dependencies
+    pushd "%work_dir%"
+    echo Running: mvn clean package
+    call mvn clean package
+    if errorlevel 1 (
+        echo ERREUR: mvn clean package a echoue
+        popd
+        rem continue - we'll try to find an existing jar in target or fall back
+    ) else (
+        echo mvn clean package termine avec succes
+    )
+
+    echo Running: mvn dependency:copy-dependencies -DoutputDirectory=target\dependency
+    call mvn dependency:copy-dependencies -DoutputDirectory=target\dependency
+    if errorlevel 1 (
+        echo ATTENTION: mvn dependency:copy-dependencies a echoue
+    ) else (
+        echo Dependencies copied to target\dependency
+    )
+
+    popd
+) else (
+    echo Aucun pom.xml trouve dans %work_dir% - saut des etapes Maven
+)
+
+echo Recherche du JAR Maven dans "%work_dir%\target"...
+set "JAR_FOUND="
+if exist "%work_dir%\target\*.jar" (
+    rem Trouver le JAR le plus récent (dir /b /a:-d retourne par date décroissante)
+    for /f "delims=" %%F in ('dir /b /a:-d "%work_dir%\target\*.jar" 2^>nul') do (
+        rem %%F is the file name; construct full path explicitly to avoid expansion issues
+        set "JAR_NAME=%%F"
+        set "JAR_FOUND=%work_dir%\target\%%F"
+        goto :afterFindJar
+    )
+)
+
+:afterFindJar
+if defined JAR_FOUND (
+    echo JAR Maven trouvé : %JAR_FOUND%
+    if not exist "%jar_output_path%" mkdir "%jar_output_path%"
+    if not exist "%JAR_FOUND%" (
+        echo ERREUR: le fichier JAR trouve n'existe pas : %JAR_FOUND%
+        goto :endJarSection
+    )
+    echo Copie du JAR vers %jar_output_path%...
+    echo Copie depuis : "%JAR_FOUND%"
+    echo Vers : "%jar_output_path%\"
+    copy /Y "%JAR_FOUND%" "%jar_output_path%\"
+    echo JAR copié.
+    rem --- Copier les dépendances vers %jar_output_path%
+    set "DEPS_COPIED=0"
+    for %%D in ("%work_dir%\target\dependency") do (
+        if exist "%%~D" (
+            echo Copie des dépendances depuis: %%~D
+            if not exist "%jar_output_path%" mkdir "%jar_output_path%"
+            xcopy "%%~D\*" "%jar_output_path%" /E /I /Y
+            set "DEPS_COPIED=1"
+        )
+    )
+    if "!DEPS_COPIED!"=="0" echo Aucune dépendance trouvee dans les dossiers connus.
+    echo Operation terminee.
+    goto :endJarSection
 )
 
 pause
