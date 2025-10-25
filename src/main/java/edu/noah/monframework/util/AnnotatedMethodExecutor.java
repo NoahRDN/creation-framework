@@ -91,14 +91,17 @@ public class AnnotatedMethodExecutor {
                 out.add(m);
             }
         }
-        // sort by order then name for deterministic behavior
-        out.sort(Comparator.comparingInt((Method m) -> m.getAnnotation(InvokeMe.class).order())
-                .thenComparing(Method::getName));
+        // sort by annotation path then name for deterministic behavior
+        out.sort(Comparator.comparing((Method m) -> {
+            InvokeMe a = m.getAnnotation(InvokeMe.class);
+            return (a == null) ? "" : a.path();
+        }).thenComparing(Method::getName));
         return out;
     }
 
     /** Execute annotated methods whose annotation path equals the provided path (exact match).
-     * If multiple methods declare the same path, they are executed in annotation order.
+    * If multiple methods declare the same path, they are executed in a deterministic order (by
+    * annotation path then method name).
      */
     public static void executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
         if (path == null) throw new IllegalArgumentException("path must not be null");
