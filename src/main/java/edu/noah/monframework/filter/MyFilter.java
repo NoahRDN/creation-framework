@@ -21,6 +21,7 @@ public class MyFilter implements Filter {
     public void init(FilterConfig filterConfig) {
         this.context = filterConfig.getServletContext();
         if (this.context != null) this.context.log("[MyFilter] Initialisé");
+
     }
 
     @Override
@@ -42,7 +43,7 @@ public class MyFilter implements Filter {
             chain.doFilter(request, response);
             return; 
         }
-
+        
         boolean handled = AnnotatedRouteRegistry.executePath(path, req, resp);
 
         if (!handled) {
@@ -62,11 +63,26 @@ public class MyFilter implements Filter {
 
     private boolean isStaticResource(String path) {
         try {
+            // Normalise le chemin
+            if (path.endsWith("/")) {
+                // Vérifie s’il y a un index.html ou index.jsp dans ce dossier
+                if (context.getResource(path + "index.html") != null ||
+                    context.getResource(path + "index.jsp") != null) {
+                    return true;
+                } else {
+                    // Le dossier existe mais pas d’index → 404
+                    return false;
+                }
+            }
+
+            // Sinon, c’est peut-être un fichier statique direct
             return !DEFAULT_PATH.equals(path) && context.getResource(path) != null;
+
         } catch (MalformedURLException e) {
             return false;
         }
     }
+
 
 
     @Override
