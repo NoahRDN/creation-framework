@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.util.*;
+import edu.noah.monframework.util.ControllerScanner;
+import edu.noah.monframework.annotation.Controller;
 
 /**
  * Simple registry that maps paths (strings) to classes that declare @InvokeMe(path=...)
@@ -77,5 +79,30 @@ public class AnnotatedRouteRegistry {
         List<String> out = new ArrayList<>(ROUTES.keySet());
         Collections.sort(out);
         return out;
+    }
+
+    /** Register a single class by scanning its @InvokeMe methods. */
+    public static void register(Class<?> clazz) {
+        for (Method m : clazz.getDeclaredMethods()) {
+            InvokeMe inv = m.getAnnotation(InvokeMe.class);
+            if (inv != null && !inv.path().isEmpty()) {
+                ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
+            }
+        }
+    }
+
+    /** Find controller classes annotated with @Controller under the given package. */
+    public static List<Class<?>> findControllersInPackage(String basePackage) {
+        return ControllerScanner.findControllers(basePackage);
+    }
+
+    /** Auto-register all controller classes under the package by scanning for @Controller.
+     * For each controller, registers any @InvokeMe methods it declares.
+     */
+    public static void registerControllersInPackage(String basePackage) {
+        List<Class<?>> controllers = findControllersInPackage(basePackage);
+        for (Class<?> c : controllers) {
+            register(c);
+        }
     }
 }
