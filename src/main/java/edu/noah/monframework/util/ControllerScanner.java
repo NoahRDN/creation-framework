@@ -28,6 +28,14 @@ public final class ControllerScanner {
     private ControllerScanner() {}
 
     public static List<Class<?>> findControllers(String packageName) {
+        return findAllClasses(packageName).stream().filter(c -> c.isAnnotationPresent(Controller.class)).collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Find all classes under the given package. This is a best-effort scanner that supports
+     * exploded directories and JAR files on the classpath.
+     */
+    public static List<Class<?>> findAllClasses(String packageName) {
         if (packageName == null) throw new IllegalArgumentException("packageName must not be null");
         List<Class<?>> out = new ArrayList<>();
         String path = packageName.replace('.', '/');

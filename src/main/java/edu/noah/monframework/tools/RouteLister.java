@@ -1,11 +1,7 @@
 package edu.noah.monframework.tools;
 
 import edu.noah.monframework.annotation.InvokeMe;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
-import io.github.classgraph.MethodInfo;
-import io.github.classgraph.AnnotationInfo;
-import io.github.classgraph.ScanResult;
+import edu.noah.monframework.util.ControllerScanner;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -32,16 +28,17 @@ public class RouteLister {
     public static List<RouteInfo> collectAll(String basePackage, String webappDirPath) {
         Map<String, RouteInfo> map = new TreeMap<>();
 
-        // 1) annotated methods
-        try (ScanResult scanResult = new ClassGraph().enableAllInfo().acceptPackages(basePackage).scan()) {
-            for (ClassInfo ci : scanResult.getClassesWithMethodAnnotation(InvokeMe.class.getName())) {
-                for (MethodInfo mi : ci.getMethodInfo()) {
-                    if (mi.hasAnnotation(InvokeMe.class.getName())) {
-                        Object val = mi.getAnnotationInfo(InvokeMe.class.getName()).getParameterValues().getValue("path");
-                        String path = (val == null) ? "" : val.toString();
+        // 1) annotated methods - use in-project scanner
+        try {
+            List<Class<?>> classes = ControllerScanner.findAllClasses(basePackage);
+            for (Class<?> ci : classes) {
+                for (java.lang.reflect.Method mi : ci.getDeclaredMethods()) {
+                    if (mi.isAnnotationPresent(InvokeMe.class)) {
+                        InvokeMe ann = mi.getAnnotation(InvokeMe.class);
+                        String path = (ann == null) ? "" : ann.path();
                         final String routePath = path;
                         RouteInfo ri = map.computeIfAbsent(routePath, k -> new RouteInfo(k, RouteInfo.Source.ANNOTATION));
-                        ri.addHandler(ci.getName() + "#" + mi.getName() + (mi.isStatic() ? "[static]" : "[instance]"));
+                        ri.addHandler(ci.getName() + "#" + mi.getName() + (java.lang.reflect.Modifier.isStatic(mi.getModifiers()) ? "[static]" : "[instance]"));
                     }
                 }
             }
@@ -99,38 +96,37 @@ public class RouteLister {
         }
 
         // 2b) classes annotated with @WebServlet (jakarta / javax)
-        try (ScanResult scanResult = new ClassGraph().enableAllInfo().acceptPackages(basePackage).scan()) {
+        // 2b) classes annotated with @WebServlet (jakarta / javax) - use reflection on scanned classes
+        try {
+            List<Class<?>> classes = ControllerScanner.findAllClasses(basePackage);
             String[] servletAnnNames = new String[]{"jakarta.servlet.annotation.WebServlet", "javax.servlet.annotation.WebServlet"};
-            for (String annName : servletAnnNames) {
-                try {
-                    for (ClassInfo ci : scanResult.getClassesWithAnnotation(annName)) {
-                        AnnotationInfo ai = ci.getAnnotationInfo(annName);
-                        if (ai == null) continue;
-                        Object v1 = ai.getParameterValues().getValue("value");
-                        Object v2 = ai.getParameterValues().getValue("urlPatterns");
-                        List<String> patterns = new ArrayList<>();
-                        if (v1 != null) {
-                            if (v1.getClass().isArray()) {
-                                for (Object o : (Object[]) v1) patterns.add(o.toString());
-                            } else {
-                                patterns.add(v1.toString());
+            for (Class<?> ci : classes) {
+                for (java.lang.annotation.Annotation ann : ci.getAnnotations()) {
+                    String annName = ann.annotationType().getName();
+                    for (String candidate : servletAnnNames) {
+                        if (candidate.equals(annName)) {
+                            List<String> patterns = new ArrayList<>();
+                            try {
+                                java.lang.reflect.Method mVal = ann.annotationType().getMethod("value");
+                                Object v = mVal.invoke(ann);
+                                if (v != null) {
+                                    if (v.getClass().isArray()) for (Object o : (Object[]) v) patterns.add(o.toString()); else patterns.add(v.toString());
+                                }
+                            } catch (NoSuchMethodException ignored) {}
+                            try {
+                                java.lang.reflect.Method mUrl = ann.annotationType().getMethod("urlPatterns");
+                                Object v2 = mUrl.invoke(ann);
+                                if (v2 != null) {
+                                    if (v2.getClass().isArray()) for (Object o : (Object[]) v2) patterns.add(o.toString()); else patterns.add(v2.toString());
+                                }
+                            } catch (NoSuchMethodException ignored) {}
+
+                            for (String p : patterns) {
+                                RouteInfo ri = map.computeIfAbsent(p, k -> new RouteInfo(k, RouteInfo.Source.SERVLET_ANNOTATION));
+                                ri.addHandler(ci.getName() + " (@WebServlet)");
                             }
-                        }
-                        if (v2 != null) {
-                            if (v2.getClass().isArray()) {
-                                for (Object o : (Object[]) v2) patterns.add(o.toString());
-                            } else {
-                                patterns.add(v2.toString());
-                            }
-                        }
-                        // if no explicit patterns, try empty or skip
-                        for (String p : patterns) {
-                            RouteInfo ri = map.computeIfAbsent(p, k -> new RouteInfo(k, RouteInfo.Source.SERVLET_ANNOTATION));
-                            ri.addHandler(ci.getName() + " (@WebServlet)");
                         }
                     }
-                } catch (Exception e) {
-                    // ignore and continue with the other annotation name
                 }
             }
         } catch (Exception e) {
@@ -138,37 +134,37 @@ public class RouteLister {
         }
 
         // 2c) classes annotated with @WebFilter (jakarta / javax)
-        try (ScanResult scanResult = new ClassGraph().enableAllInfo().acceptPackages(basePackage).scan()) {
+        // 2c) classes annotated with @WebFilter (jakarta / javax) - use reflection on scanned classes
+        try {
+            List<Class<?>> classes = ControllerScanner.findAllClasses(basePackage);
             String[] filterAnnNames = new String[]{"jakarta.servlet.annotation.WebFilter", "javax.servlet.annotation.WebFilter"};
-            for (String annName : filterAnnNames) {
-                try {
-                    for (ClassInfo ci : scanResult.getClassesWithAnnotation(annName)) {
-                        AnnotationInfo ai = ci.getAnnotationInfo(annName);
-                        if (ai == null) continue;
-                        Object v1 = ai.getParameterValues().getValue("value");
-                        Object v2 = ai.getParameterValues().getValue("urlPatterns");
-                        List<String> patterns = new ArrayList<>();
-                        if (v1 != null) {
-                            if (v1.getClass().isArray()) {
-                                for (Object o : (Object[]) v1) patterns.add(o.toString());
-                            } else {
-                                patterns.add(v1.toString());
+            for (Class<?> ci : classes) {
+                for (java.lang.annotation.Annotation ann : ci.getAnnotations()) {
+                    String annName = ann.annotationType().getName();
+                    for (String candidate : filterAnnNames) {
+                        if (candidate.equals(annName)) {
+                            List<String> patterns = new ArrayList<>();
+                            try {
+                                java.lang.reflect.Method mVal = ann.annotationType().getMethod("value");
+                                Object v = mVal.invoke(ann);
+                                if (v != null) {
+                                    if (v.getClass().isArray()) for (Object o : (Object[]) v) patterns.add(o.toString()); else patterns.add(v.toString());
+                                }
+                            } catch (NoSuchMethodException ignored) {}
+                            try {
+                                java.lang.reflect.Method mUrl = ann.annotationType().getMethod("urlPatterns");
+                                Object v2 = mUrl.invoke(ann);
+                                if (v2 != null) {
+                                    if (v2.getClass().isArray()) for (Object o : (Object[]) v2) patterns.add(o.toString()); else patterns.add(v2.toString());
+                                }
+                            } catch (NoSuchMethodException ignored) {}
+
+                            for (String p : patterns) {
+                                RouteInfo ri = map.computeIfAbsent(p, k -> new RouteInfo(k, RouteInfo.Source.FILTER_ANNOTATION));
+                                ri.addHandler(ci.getName() + " (@WebFilter)");
                             }
-                        }
-                        if (v2 != null) {
-                            if (v2.getClass().isArray()) {
-                                for (Object o : (Object[]) v2) patterns.add(o.toString());
-                            } else {
-                                patterns.add(v2.toString());
-                            }
-                        }
-                        for (String p : patterns) {
-                            RouteInfo ri = map.computeIfAbsent(p, k -> new RouteInfo(k, RouteInfo.Source.FILTER_ANNOTATION));
-                            ri.addHandler(ci.getName() + " (@WebFilter)");
                         }
                     }
-                } catch (Exception e) {
-                    // ignore and continue with the other annotation name
                 }
             }
         } catch (Exception e) {
