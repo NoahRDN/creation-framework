@@ -103,7 +103,7 @@ public class AnnotatedMethodExecutor {
     * If multiple methods declare the same path, they are executed in a deterministic order (by
     * annotation path then method name).
      */
-    public static void executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
+    public static List<Method> executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
         if (path == null) throw new IllegalArgumentException("path must not be null");
         List<Method> all = getAnnotatedMethods(clazz);
         List<Method> matched = new ArrayList<>();
@@ -111,6 +111,7 @@ public class AnnotatedMethodExecutor {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (a != null && path.equals(a.path())) matched.add(m);
         }
+        List<Method> invoked = new ArrayList<>();
         Object instance = null;
         for (Method m : matched) {
             if (Modifier.isStatic(m.getModifiers())) {
@@ -119,20 +120,25 @@ public class AnnotatedMethodExecutor {
                 if (instance == null) instance = instantiate(clazz);
                 invokeMethod(instance, m);
             }
+            invoked.add(m);
         }
+        return invoked;
     }
 
     /** Execute annotated methods on a specific instance whose annotation path equals the provided path. */
-    public static void executeAnnotatedMethodsForPath(Object instance, String path) {
+    public static List<Method> executeAnnotatedMethodsForPath(Object instance, String path) {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
         if (path == null) throw new IllegalArgumentException("path must not be null");
         Class<?> clazz = instance.getClass();
         List<Method> all = getAnnotatedMethods(clazz);
+        List<Method> invoked = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (a != null && path.equals(a.path())) {
                 invokeMethod(instance, m);
+                invoked.add(m);
             }
         }
+        return invoked;
     }
 }

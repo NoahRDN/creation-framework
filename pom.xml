@@ -17,14 +17,6 @@
             <version>6.0.0</version>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Dépendance pour ClassGraph -->
-        <dependency>
-            <groupId>io.github.classgraph</groupId>
-            <artifactId>classgraph</artifactId>
-            <version>4.8.160</version>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
 
     <build>

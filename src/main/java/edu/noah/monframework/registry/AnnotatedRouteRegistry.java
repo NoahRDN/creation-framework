@@ -5,17 +5,14 @@ import edu.noah.monframework.util.AnnotatedMethodExecutor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ScanResult;
+// Replaced ClassGraph usage with in-project scanner
 import java.lang.reflect.Method;
 import java.util.List;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.Method;
 import java.util.*;
 import edu.noah.monframework.util.ControllerScanner;
-import edu.noah.monframework.annotation.Controller;
 
 /**
  * Simple registry that maps paths (strings) to classes that declare @InvokeMe(path=...)
@@ -23,33 +20,6 @@ import edu.noah.monframework.annotation.Controller;
  */
 public class AnnotatedRouteRegistry {
     private static final Map<String, List<Class<?>>> ROUTES = new HashMap<>();
-
-    /**
-     * Auto-register all annotated classes found under the given package.
-     */
-    public static void autoRegister(String basePackage) {
-        System.out.println("[AutoScan] Scanning package: " + basePackage);
-        try (ScanResult scanResult = new ClassGraph()
-                .enableAllInfo()
-                .acceptPackages(basePackage)
-                .scan()) {
-
-            List<Class<?>> classes = scanResult.getClassesWithMethodAnnotation(InvokeMe.class.getName())
-                                            .loadClasses();
-
-            for (Class<?> clazz : classes) {
-                for (Method m : clazz.getDeclaredMethods()) {
-                    if (m.isAnnotationPresent(InvokeMe.class)) {
-                        InvokeMe inv = m.getAnnotation(InvokeMe.class);
-                        if (inv != null && !inv.path().isEmpty()) {
-                            ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
-                            System.out.println("[AutoScan] Route: " + inv.path() + " -> " + clazz.getSimpleName());
-                        }
-                    }
-                }
-            }
-        }
-    }
     
     /** Execute handlers registered for the exact path. Returns true if any handler was invoked. */
     public static boolean executePath(String path, HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -63,8 +33,14 @@ public class AnnotatedRouteRegistry {
             for (Class<?> c : handlers) {
                 out.println("<div>Exécution des gestionnaires dans la classe : " + c.getName() + "</div>");
                 try {
-                    AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
-                    out.println("<div style=\"color:green\">Exécuté : " + c.getName() + "</div>");
+                    List<Method> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                    if (executed.isEmpty()) {
+                        out.println("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
+                    } else {
+                        for (Method method : executed) {
+                            out.println("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
+                        }
+                    }
                 } catch (Throwable t) {
                     out.println("<div style=\"color:red\">Erreur lors de l'exécution de " + c.getName() + ": " + t.getMessage() + "</div>");
                 }

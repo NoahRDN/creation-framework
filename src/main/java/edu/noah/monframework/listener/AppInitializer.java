@@ -9,8 +9,17 @@ import edu.noah.monframework.registry.AnnotatedRouteRegistry;
 public class AppInitializer implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        // AnnotatedRouteRegistry.autoRegister("edu.noah.monframework.example");
-        // System.out.println("[AppInitializer] Routes auto-enregistrées !");
+        try {
+            AnnotatedRouteRegistry.registerControllersInPackage("edu.noah.monframework");
+            if (sce != null && sce.getServletContext() != null) {
+                sce.getServletContext().log("[AppInitializer] Controller routes registered: " + AnnotatedRouteRegistry.getRegisteredPaths());
+            } else {
+                System.out.println("[AppInitializer] Controller routes registered: " + AnnotatedRouteRegistry.getRegisteredPaths());
+            }
+        } catch (Exception e) {
+            System.out.println("[AppInitializer] Failed to register controller routes: " + e.getMessage());
+            if (sce != null && sce.getServletContext() != null) sce.getServletContext().log("Failed to register controller routes", e);
+        }
     }
 }
     
