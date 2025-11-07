@@ -57,6 +57,7 @@ public class MyFilter implements Filter {
         try (PrintWriter out = resp.getWriter()) {
             out.println("<html><body>");
             out.println("<h2>URL Capturé: " + path + "</h2>");
+            out.println("<h1>404 not found</h1>");
             out.println("</body></html>");
         }
     }
