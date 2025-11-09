@@ -59,7 +59,7 @@ public class MyFilter implements Filter {
             out.println("<h2>URL Capturé: " + path + "</h2>");
             out.println("<h1>404 not found</h1>");
             out.println("</body></html>");
-        }
+        }   
     }
 
     private boolean isStaticResource(String path) {
