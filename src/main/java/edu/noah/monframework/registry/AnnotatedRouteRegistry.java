@@ -2,6 +2,7 @@ package edu.noah.monframework.registry;
 
 import edu.noah.monframework.annotation.InvokeMe;
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
+import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -33,12 +34,18 @@ public class AnnotatedRouteRegistry {
             for (Class<?> c : handlers) {
                 out.println("<div>Exécution des gestionnaires dans la classe : " + c.getName() + "</div>");
                 try {
-                    List<Method> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                    List<InvocationResult> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
                     if (executed.isEmpty()) {
                         out.println("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
                     } else {
-                        for (Method method : executed) {
+                        for (InvocationResult result : executed) {
+                            Method method = result.method();
                             out.println("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
+                            if (String.class.equals(method.getReturnType())) {
+                                Object raw = result.returnValue();
+                                String rendered = (raw == null) ? "null" : raw.toString();
+                                out.println("<div style=\"margin-left:20px\">Contenu retourné : " + escapeHtml(rendered) + "</div>");
+                            }
                         }
                     }
                 } catch (Throwable t) {
@@ -80,5 +87,13 @@ public class AnnotatedRouteRegistry {
         for (Class<?> c : controllers) {
             register(c);
         }
+    }
+
+    private static String escapeHtml(String input) {
+        if (input == null) return "";
+        return input
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 }
