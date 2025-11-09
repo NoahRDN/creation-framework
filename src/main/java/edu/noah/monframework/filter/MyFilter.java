@@ -7,15 +7,16 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.MalformedURLException;
 
 import edu.noah.monframework.registry.AnnotatedRouteRegistry;
-import edu.noah.monframework.util.ResourceHelper;
 
 @WebFilter("/*")
 public class MyFilter implements Filter {
 
-    private static final String DEFAULT_PATH = "/";
     private ServletContext context;
+    private static final String DEFAULT_PATH = "/";
+
     @Override
     public void init(FilterConfig filterConfig) {
         this.context = filterConfig.getServletContext();
@@ -62,7 +63,25 @@ public class MyFilter implements Filter {
     }
 
     private boolean isStaticResource(String path) {
-        return ResourceHelper.isStaticResource(context, path);
+        try {
+            // Normalise le chemin
+            if (path.endsWith("/")) {
+                // Vérifie s’il y a un index.html ou index.jsp dans ce dossier
+                if (context.getResource(path + "index.html") != null ||
+                    context.getResource(path + "index.jsp") != null) {
+                    return true;
+                } else {
+                    // Le dossier existe mais pas d’index → 404
+                    return false;
+                }
+            }
+
+            // Sinon, c’est peut-être un fichier statique direct
+            return !DEFAULT_PATH.equals(path) && context.getResource(path) != null;
+
+        } catch (MalformedURLException e) {
+            return false;
+        }
     }
 
 
