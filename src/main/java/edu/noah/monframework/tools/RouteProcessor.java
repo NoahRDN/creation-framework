@@ -2,6 +2,7 @@ package edu.noah.monframework.tools;
 
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
 import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
+import edu.noah.monframework.web.ModelView;
 import java.util.List;
 
 /**
@@ -40,8 +41,12 @@ public class RouteProcessor {
                     try {
                         List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
                         for (InvocationResult result : results) {
-                            if (String.class.equals(result.method().getReturnType())) {
+                            Class<?> returnType = result.method().getReturnType();
+                            if (String.class.equals(returnType)) {
                                 System.out.println("      -> Retour String: " + result.returnValue());
+                            } else if (ModelView.class.isAssignableFrom(returnType)) {
+                                ModelView mv = (ModelView) result.returnValue();
+                                System.out.println("      -> ModelView vers: " + (mv == null ? "null" : mv.getView()));
                             }
                         }
                     } catch (Throwable t) {
