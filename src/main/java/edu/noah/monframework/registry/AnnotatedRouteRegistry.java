@@ -39,10 +39,17 @@ public class AnnotatedRouteRegistry {
             try {
                 List<InvocationResult> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
                 if (executed.isEmpty()) {
-                    htmlChunks.add("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
+                    htmlChunks.add("<div style=\"color:red\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
                 } else {
                     for (InvocationResult result : executed) {
                         Method method = result.method();
+                        if (!result.invoked()) {
+                            htmlChunks.add("<div style=\"color:red;margin-left:20px\">Ignoré : "
+                                    + escapeHtml(c.getName() + "#" + method.getName())
+                                    + " (type de retour non supporté : "
+                                    + escapeHtml(method.getReturnType().getSimpleName()) + ")</div>");
+                            continue;
+                        }
                         htmlChunks.add("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
                         Class<?> returnType = method.getReturnType();
                         Object raw = result.returnValue();
@@ -84,9 +91,8 @@ public class AnnotatedRouteRegistry {
     public static void register(Class<?> clazz) {
         for (Method m : clazz.getDeclaredMethods()) {
             InvokeMe inv = m.getAnnotation(InvokeMe.class);
-            if (inv != null && !inv.path().isEmpty()) {
-                ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
-            }
+            if (inv == null || inv.path().isEmpty()) continue;
+            ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
         }
     }
 

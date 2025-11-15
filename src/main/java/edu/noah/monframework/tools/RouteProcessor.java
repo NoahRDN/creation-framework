@@ -41,6 +41,11 @@ public class RouteProcessor {
                     try {
                         List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
                         for (InvocationResult result : results) {
+                            if (!result.invoked()) {
+                                System.out.println("      -> Ignoré (type non supporté) : "
+                                        + result.method().getReturnType().getSimpleName());
+                                continue;
+                            }
                             Class<?> returnType = result.method().getReturnType();
                             if (String.class.equals(returnType)) {
                                 System.out.println("      -> Retour String: " + result.returnValue());
