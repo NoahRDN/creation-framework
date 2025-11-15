@@ -20,7 +20,7 @@ import java.util.List;
 public class AnnotatedMethodExecutor {
 
     /** Result of invoking an annotated method. */
-    public record InvocationResult(Method method, Object returnValue) {}
+    public record InvocationResult(Method method, Object returnValue, boolean invoked) {}
 
     /** Execute annotated methods on a provided instance. */
     public static void executeAnnotatedMethods(Object instance) {
@@ -108,23 +108,23 @@ public class AnnotatedMethodExecutor {
      */
     public static List<InvocationResult> executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
         if (path == null) throw new IllegalArgumentException("path must not be null");
-        List<Method> all = getAnnotatedMethods(clazz);
-        List<Method> matched = new ArrayList<>();
-        for (Method m : all) {
-            InvokeMe a = m.getAnnotation(InvokeMe.class);
-            if (a != null && path.equals(a.path())) matched.add(m);
-        }
+        List<MethodCandidate> candidates = collectCandidates(clazz, path);
         List<InvocationResult> invoked = new ArrayList<>();
         Object instance = null;
-        for (Method m : matched) {
+        for (MethodCandidate candidate : candidates) {
+            Method method = candidate.method();
+            if (!candidate.supported()) {
+                invoked.add(new InvocationResult(method, null, false));
+                continue;
+            }
             Object returnValue;
-            if (Modifier.isStatic(m.getModifiers())) {
-                returnValue = invokeStaticMethod(m);
+            if (Modifier.isStatic(method.getModifiers())) {
+                returnValue = invokeStaticMethod(method);
             } else {
                 if (instance == null) instance = instantiate(clazz);
-                returnValue = invokeMethod(instance, m);
+                returnValue = invokeMethod(instance, method);
             }
-            invoked.add(new InvocationResult(m, returnValue));
+            invoked.add(new InvocationResult(method, returnValue, true));
         }
         return invoked;
     }
@@ -134,15 +134,32 @@ public class AnnotatedMethodExecutor {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
         if (path == null) throw new IllegalArgumentException("path must not be null");
         Class<?> clazz = instance.getClass();
-        List<Method> all = getAnnotatedMethods(clazz);
+        List<MethodCandidate> candidates = collectCandidates(clazz, path);
         List<InvocationResult> invoked = new ArrayList<>();
+        for (MethodCandidate candidate : candidates) {
+            Method method = candidate.method();
+            if (!candidate.supported()) {
+                invoked.add(new InvocationResult(method, null, false));
+                continue;
+            }
+            Object returnValue = invokeMethod(instance, method);
+            invoked.add(new InvocationResult(method, returnValue, true));
+        }
+        return invoked;
+    }
+
+    private record MethodCandidate(Method method, boolean supported) {}
+
+    private static List<MethodCandidate> collectCandidates(Class<?> clazz, String path) {
+        List<Method> all = getAnnotatedMethods(clazz);
+        List<MethodCandidate> candidates = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (a != null && path.equals(a.path())) {
-                Object returnValue = invokeMethod(instance, m);
-                invoked.add(new InvocationResult(m, returnValue));
+                boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType());
+                candidates.add(new MethodCandidate(m, supported));
             }
         }
-        return invoked;
+        return candidates;
     }
 }
