@@ -26,6 +26,35 @@ public class AnnotatedRouteRegistry {
         List<Class<?>> handlers = ROUTES.get(path);
         if (handlers == null || handlers.isEmpty()) return false;
 
+        List<String> htmlChunks = new ArrayList<>();
+        htmlChunks.add("<h2>URL Capturé avec annotation : " + escapeHtml(path) + "</h2>");
+        for (Class<?> c : handlers) {
+            htmlChunks.add("<div>Exécution des gestionnaires dans la classe : " + c.getName() + "</div>");
+            try {
+                List<InvocationResult> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                if (executed.isEmpty()) {
+                    htmlChunks.add("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
+                } else {
+                    for (InvocationResult result : executed) {
+                        Method method = result.method();
+                        htmlChunks.add("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
+                        Class<?> returnType = method.getReturnType();
+                        Object raw = result.returnValue();
+                        if (ModelView.class.isAssignableFrom(returnType)) {
+                            if (handleModelViewResult(raw, req, resp, htmlChunks)) {
+                                return true;
+                            }
+                        } else if (String.class.equals(returnType)) {
+                            String rendered = (raw == null) ? "null" : raw.toString();
+                            htmlChunks.add("<div style=\"margin-left:20px\">Contenu retourné : " + escapeHtml(rendered) + "</div>");
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                htmlChunks.add("<div style=\"color:red\">Erreur lors de l'exécution de " + c.getName() + ": " + escapeHtml(t.getMessage()) + "</div>");
+            }
+        }
+
         resp.setContentType("text/html;charset=UTF-8");
         try (PrintWriter out = resp.getWriter()) {
             out.println("<html><body>");

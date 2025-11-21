@@ -19,6 +19,9 @@ import java.util.List;
  */
 public class AnnotatedMethodExecutor {
 
+    /** Result of invoking an annotated method. */
+    public record InvocationResult(Method method, Object returnValue) {}
+
     /** Execute annotated methods on a provided instance. */
     public static void executeAnnotatedMethods(Object instance) {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
@@ -111,16 +114,17 @@ public class AnnotatedMethodExecutor {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (a != null && path.equals(a.path())) matched.add(m);
         }
-        List<Method> invoked = new ArrayList<>();
+        List<InvocationResult> invoked = new ArrayList<>();
         Object instance = null;
         for (Method m : matched) {
+            Object returnValue;
             if (Modifier.isStatic(m.getModifiers())) {
-                invokeStaticMethod(m);
+                returnValue = invokeStaticMethod(m);
             } else {
                 if (instance == null) instance = instantiate(clazz);
-                invokeMethod(instance, m);
+                returnValue = invokeMethod(instance, m);
             }
-            invoked.add(m);
+            invoked.add(new InvocationResult(m, returnValue));
         }
         return invoked;
     }
@@ -131,12 +135,12 @@ public class AnnotatedMethodExecutor {
         if (path == null) throw new IllegalArgumentException("path must not be null");
         Class<?> clazz = instance.getClass();
         List<Method> all = getAnnotatedMethods(clazz);
-        List<Method> invoked = new ArrayList<>();
+        List<InvocationResult> invoked = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (a != null && path.equals(a.path())) {
-                invokeMethod(instance, m);
-                invoked.add(m);
+                Object returnValue = invokeMethod(instance, m);
+                invoked.add(new InvocationResult(m, returnValue));
             }
         }
         return invoked;

@@ -37,7 +37,16 @@ public class RouteProcessor {
                 try {
                     Class<?> c = Class.forName(className);
                     try {
-                        AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                        for (InvocationResult result : results) {
+                            Class<?> returnType = result.method().getReturnType();
+                            if (String.class.equals(returnType)) {
+                                System.out.println("      -> Retour String: " + result.returnValue());
+                            } else if (ModelView.class.isAssignableFrom(returnType)) {
+                                ModelView mv = (ModelView) result.returnValue();
+                                System.out.println("      -> ModelView vers: " + (mv == null ? "null" : mv.getView()));
+                            }
+                        }
                     } catch (Throwable t) {
                         System.err.println("Failed executing on " + className + ": " + t.getMessage());
                         t.printStackTrace(System.err);
