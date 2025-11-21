@@ -19,9 +19,6 @@ import java.util.List;
  */
 public class AnnotatedMethodExecutor {
 
-    /** Result of invoking an annotated method. */
-    public record InvocationResult(Method method, Object returnValue, boolean invoked) {}
-
     /** Execute annotated methods on a provided instance. */
     public static void executeAnnotatedMethods(Object instance) {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
@@ -63,25 +60,25 @@ public class AnnotatedMethodExecutor {
         }
     }
 
-    private static Object invokeStaticMethod(Method m) {
+    private static void invokeStaticMethod(Method m) {
         try {
             if (!m.canAccess(null)) m.setAccessible(true);
             if (m.getParameterCount() != 0) {
                 throw new IllegalStateException("Annotated static method must have no parameters: " + m);
             }
-            return m.invoke(null);
+            m.invoke(null);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Failed to invoke static method " + m, e);
         }
     }
 
-    private static Object invokeMethod(Object instance, Method m) {
+    private static void invokeMethod(Object instance, Method m) {
         try {
             if (!m.canAccess(instance)) m.setAccessible(true);
             if (m.getParameterCount() != 0) {
                 throw new IllegalStateException("Annotated method must have no parameters: " + m);
             }
-            return m.invoke(instance);
+            m.invoke(instance);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Failed to invoke method " + m + " on " + instance, e);
         }
@@ -102,64 +99,51 @@ public class AnnotatedMethodExecutor {
         return out;
     }
 
-    /** Execute annotated methods whose annotation path equals the provided path (exact match).
+    /** Execute annotated methods whose annotation path matches the provided request path.
+    * Supports exact matches and placeholder patterns like "/hello/{id}".
     * If multiple methods declare the same path, they are executed in a deterministic order (by
     * annotation path then method name).
      */
-    public static List<InvocationResult> executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
+    public static List<Method> executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
         if (path == null) throw new IllegalArgumentException("path must not be null");
-        List<MethodCandidate> candidates = collectCandidates(clazz, path);
-        List<InvocationResult> invoked = new ArrayList<>();
+        List<Method> all = getAnnotatedMethods(clazz);
+        List<Method> matched = new ArrayList<>();
+        for (Method m : all) {
+            InvokeMe a = m.getAnnotation(InvokeMe.class);
+            if (matchesPath(path, a)) matched.add(m);
+        }
+        List<Method> invoked = new ArrayList<>();
         Object instance = null;
-        for (MethodCandidate candidate : candidates) {
-            Method method = candidate.method();
-            if (!candidate.supported()) {
-                invoked.add(new InvocationResult(method, null, false));
-                continue;
-            }
-            Object returnValue;
-            if (Modifier.isStatic(method.getModifiers())) {
-                returnValue = invokeStaticMethod(method);
+        for (Method m : matched) {
+            if (Modifier.isStatic(m.getModifiers())) {
+                invokeStaticMethod(m);
             } else {
                 if (instance == null) instance = instantiate(clazz);
-                returnValue = invokeMethod(instance, method);
+                invokeMethod(instance, m);
             }
-            invoked.add(new InvocationResult(method, returnValue, true));
+            invoked.add(m);
         }
         return invoked;
     }
 
     /** Execute annotated methods on a specific instance whose annotation path equals the provided path. */
-    public static List<InvocationResult> executeAnnotatedMethodsForPath(Object instance, String path) {
+    public static List<Method> executeAnnotatedMethodsForPath(Object instance, String path) {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
         if (path == null) throw new IllegalArgumentException("path must not be null");
         Class<?> clazz = instance.getClass();
-        List<MethodCandidate> candidates = collectCandidates(clazz, path);
-        List<InvocationResult> invoked = new ArrayList<>();
-        for (MethodCandidate candidate : candidates) {
-            Method method = candidate.method();
-            if (!candidate.supported()) {
-                invoked.add(new InvocationResult(method, null, false));
-                continue;
+        List<Method> all = getAnnotatedMethods(clazz);
+        List<Method> invoked = new ArrayList<>();
+        for (Method m : all) {
+            InvokeMe a = m.getAnnotation(InvokeMe.class);
+            if (matchesPath(path, a)) {
+                invokeMethod(instance, m);
+                invoked.add(m);
             }
-            Object returnValue = invokeMethod(instance, method);
-            invoked.add(new InvocationResult(method, returnValue, true));
         }
         return invoked;
     }
 
-    private record MethodCandidate(Method method, boolean supported) {}
-
-    private static List<MethodCandidate> collectCandidates(Class<?> clazz, String path) {
-        List<Method> all = getAnnotatedMethods(clazz);
-        List<MethodCandidate> candidates = new ArrayList<>();
-        for (Method m : all) {
-            InvokeMe a = m.getAnnotation(InvokeMe.class);
-            if (a != null && path.equals(a.path())) {
-                boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType());
-                candidates.add(new MethodCandidate(m, supported));
-            }
-        }
-        return candidates;
+    private static boolean matchesPath(String path, InvokeMe annotation) {
+        return annotation != null && RoutePathMatcher.matches(path, annotation.path());
     }
 }

@@ -1,8 +1,6 @@
 package edu.noah.monframework.tools;
 
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
-import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
-import edu.noah.monframework.web.ModelView;
 import java.util.List;
 
 /**
@@ -32,28 +30,20 @@ public class RouteProcessor {
         for (RouteInfo r : routes) {
             if (r.getSource() != RouteInfo.Source.ANNOTATION) continue;
             String path = r.getUrl();
-            System.out.println("=== Executing annotated handlers for path: " + path + " ===");
+            String execPath = path;
+            if (path.contains("{") && path.contains("}")) {
+                execPath = path.replaceAll("\\{[^/]+\\}", "123"); // sample value for placeholder
+                System.out.println("=== Executing annotated handlers for path: " + execPath + " (pattern: " + path + ") ===");
+            } else {
+                System.out.println("=== Executing annotated handlers for path: " + path + " ===");
+            }
             for (String handler : r.getHandlers()) {
                 // handler format: full.class.Name#methodName[...] -> extract class
                 String className = handler.split("#")[0];
                 try {
                     Class<?> c = Class.forName(className);
                     try {
-                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
-                        for (InvocationResult result : results) {
-                            if (!result.invoked()) {
-                                System.out.println("      -> Ignoré (type non supporté) : "
-                                        + result.method().getReturnType().getSimpleName());
-                                continue;
-                            }
-                            Class<?> returnType = result.method().getReturnType();
-                            if (String.class.equals(returnType)) {
-                                System.out.println("      -> Retour String: " + result.returnValue());
-                            } else if (ModelView.class.isAssignableFrom(returnType)) {
-                                ModelView mv = (ModelView) result.returnValue();
-                                System.out.println("      -> ModelView vers: " + (mv == null ? "null" : mv.getView()));
-                            }
-                        }
+                        AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, execPath);
                     } catch (Throwable t) {
                         System.err.println("Failed executing on " + className + ": " + t.getMessage());
                         t.printStackTrace(System.err);
