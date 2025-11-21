@@ -99,8 +99,7 @@ public class AnnotatedMethodExecutor {
         return out;
     }
 
-    /** Execute annotated methods whose annotation path matches the provided request path.
-    * Supports exact matches and placeholder patterns like "/hello/{id}".
+    /** Execute annotated methods whose annotation path equals the provided path (exact match).
     * If multiple methods declare the same path, they are executed in a deterministic order (by
     * annotation path then method name).
      */
@@ -110,7 +109,7 @@ public class AnnotatedMethodExecutor {
         List<Method> matched = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
-            if (matchesPath(path, a)) matched.add(m);
+            if (a != null && path.equals(a.path())) matched.add(m);
         }
         List<Method> invoked = new ArrayList<>();
         Object instance = null;
@@ -135,15 +134,11 @@ public class AnnotatedMethodExecutor {
         List<Method> invoked = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
-            if (matchesPath(path, a)) {
+            if (a != null && path.equals(a.path())) {
                 invokeMethod(instance, m);
                 invoked.add(m);
             }
         }
         return invoked;
-    }
-
-    private static boolean matchesPath(String path, InvokeMe annotation) {
-        return annotation != null && RoutePathMatcher.matches(path, annotation.path());
     }
 }
