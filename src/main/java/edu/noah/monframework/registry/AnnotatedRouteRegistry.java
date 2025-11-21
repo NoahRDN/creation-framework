@@ -12,6 +12,7 @@ import java.util.List;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.*;
+import edu.noah.monframework.util.RoutePathMatcher;
 import edu.noah.monframework.util.ControllerScanner;
 
 /**
@@ -19,12 +20,12 @@ import edu.noah.monframework.util.ControllerScanner;
  * and exposes execution by path.
  */
 public class AnnotatedRouteRegistry {
-    private static final Map<String, List<Class<?>>> ROUTES = new HashMap<>();
+    private static final Map<String, List<Class<?>>> ROUTES = new LinkedHashMap<>();
     
-    /** Execute handlers registered for the exact path. Returns true if any handler was invoked. */
+    /** Execute handlers registered for a matching path (supports placeholders). Returns true if any handler was invoked. */
     public static boolean executePath(String path, HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        List<Class<?>> handlers = ROUTES.get(path);
-        if (handlers == null || handlers.isEmpty()) return false;
+        List<RouteMatch> matches = findMatchingRoutes(path);
+        if (matches.isEmpty()) return false;
 
         List<String> htmlChunks = new ArrayList<>();
         htmlChunks.add("<h2>URL Capturé avec annotation : " + escapeHtml(path) + "</h2>");
@@ -59,19 +60,21 @@ public class AnnotatedRouteRegistry {
         try (PrintWriter out = resp.getWriter()) {
             out.println("<html><body>");
             out.println("<h2>URL Capturé avec annotation : " + path + "</h2>");
-            for (Class<?> c : handlers) {
-                out.println("<div>Exécution des gestionnaires dans la classe : " + c.getName() + "</div>");
-                try {
-                    List<Method> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
-                    if (executed.isEmpty()) {
-                        out.println("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
-                    } else {
-                        for (Method method : executed) {
-                            out.println("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
+            for (RouteMatch match : matches) {
+                for (Class<?> c : match.handlers) {
+                    out.println("<div>Exécution des gestionnaires dans la classe : " + c.getName() + " (pattern : " + match.pattern + ")</div>");
+                    try {
+                        List<Method> executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                        if (executed.isEmpty()) {
+                            out.println("<div style=\"color:orange\">Aucune méthode @InvokeMe pour ce chemin dans " + c.getName() + "</div>");
+                        } else {
+                            for (Method method : executed) {
+                                out.println("<div style=\"color:green\">Exécuté : " + c.getName() + "#" + method.getName() + "</div>");
+                            }
                         }
+                    } catch (Throwable t) {
+                        out.println("<div style=\"color:red\">Erreur lors de l'exécution de " + c.getName() + ": " + t.getMessage() + "</div>");
                     }
-                } catch (Throwable t) {
-                    out.println("<div style=\"color:red\">Erreur lors de l'exécution de " + c.getName() + ": " + t.getMessage() + "</div>");
                 }
             }
             out.println("</body></html>");
@@ -108,6 +111,26 @@ public class AnnotatedRouteRegistry {
         List<Class<?>> controllers = findControllersInPackage(basePackage);
         for (Class<?> c : controllers) {
             register(c);
+        }
+    }
+
+    private static List<RouteMatch> findMatchingRoutes(String requestPath) {
+        List<RouteMatch> matches = new ArrayList<>();
+        for (Map.Entry<String, List<Class<?>>> entry : ROUTES.entrySet()) {
+            if (RoutePathMatcher.matches(requestPath, entry.getKey())) {
+                matches.add(new RouteMatch(entry.getKey(), entry.getValue()));
+            }
+        }
+        return matches;
+    }
+
+    private static final class RouteMatch {
+        final String pattern;
+        final List<Class<?>> handlers;
+
+        RouteMatch(String pattern, List<Class<?>> handlers) {
+            this.pattern = pattern;
+            this.handlers = handlers;
         }
     }
 }
