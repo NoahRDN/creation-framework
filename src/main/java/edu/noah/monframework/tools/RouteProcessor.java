@@ -1,8 +1,6 @@
 package edu.noah.monframework.tools;
 
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
-import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
-import edu.noah.monframework.web.ModelView;
 import java.util.List;
 
 /**
@@ -39,21 +37,7 @@ public class RouteProcessor {
                 try {
                     Class<?> c = Class.forName(className);
                     try {
-                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
-                        for (InvocationResult result : results) {
-                            if (!result.invoked()) {
-                                System.out.println("      -> Ignoré (type non supporté) : "
-                                        + result.method().getReturnType().getSimpleName());
-                                continue;
-                            }
-                            Class<?> returnType = result.method().getReturnType();
-                            if (String.class.equals(returnType)) {
-                                System.out.println("      -> Retour String: " + result.returnValue());
-                            } else if (ModelView.class.isAssignableFrom(returnType)) {
-                                ModelView mv = (ModelView) result.returnValue();
-                                System.out.println("      -> ModelView vers: " + (mv == null ? "null" : mv.getView()));
-                            }
-                        }
+                        AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
                     } catch (Throwable t) {
                         System.err.println("Failed executing on " + className + ": " + t.getMessage());
                         t.printStackTrace(System.err);
