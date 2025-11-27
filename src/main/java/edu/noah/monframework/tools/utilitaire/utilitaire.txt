@@ -1,3 +1,0 @@
-commande util
-
-java -cp ".;..\dependency\*" edu.noah.monframework.tools.Main
