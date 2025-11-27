@@ -32,7 +32,13 @@ public class RouteProcessor {
         for (RouteInfo r : routes) {
             if (r.getSource() != RouteInfo.Source.ANNOTATION) continue;
             String path = r.getUrl();
-            System.out.println("=== Executing annotated handlers for path: " + path + " ===");
+            String execPath = path;
+            if (path.contains("{") && path.contains("}")) {
+                execPath = path.replaceAll("\\{[^/]+\\}", "123"); // sample value for placeholder
+                System.out.println("=== Executing annotated handlers for path: " + execPath + " (pattern: " + path + ") ===");
+            } else {
+                System.out.println("=== Executing annotated handlers for path: " + path + " ===");
+            }
             for (String handler : r.getHandlers()) {
                 // handler format: full.class.Name#methodName[...] -> extract class
                 String className = handler.split("#")[0];
