@@ -45,7 +45,7 @@ public class RouteProcessor {
                 try {
                     Class<?> c = Class.forName(className);
                     try {
-                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, null, null);
                         for (InvocationResult result : results) {
                             if (!result.invoked()) {
                                 System.out.println("      -> Ignoré (type non supporté) : "
