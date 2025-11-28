@@ -25,3 +25,22 @@ permettre a mon framework de faire passer les donner donne dans modelView vers l
 scenario dans test:
 - une classe @Controller qui aura une annotation methode (Invoke) sur la methode aura une url. durant son traitement, il prendrera des donnee de test dans la base et ensuite passera au modelView. durant l'affihage avec la paeg a afficher donner au modelView, les donner passer par le modelView seront aussi afficher. 
 remarque: pour la connection a la base, une simple getCon() classique avec postgres et avec une .jar postgres sera effectuer. 
+
+==========================================================================
+
+Sprint 6-ter : 
+Atao afaka mirécupère an'ilay {valeur} ao anatin'ilay URL ilay framework dia lasa ireny (raha misy) no injecter-na ao amin'ilay méthode endpoint eo amin'ny placen'ilay argument mitovy anarana aminy
+Ohatra hoe fonctionTest(int id) izany mitady {id} ao amle URL dia izay valeur hitany ao no ampiasainy
+Dia mba hanamoraina ny fiainana amty ray ty ozy Mr Naina hoe asio ordre de priorité fotsiny ohatra hoe raha tss anle variable anaty url dia tadiavo anaty request ilay variable sinon soloy null na mithrow-eva Exception (exemple ana ordre io anah io fa izay tianareo)
+
+--------------------------------------------------------------
+
+utilisation de la valeur dans l'accolade et le relier dans le parametre
+
+--------------------------
+
+sprint 7:
+utilser la classe classMethode dans le map <string, ClassMethode> dans le map et stocquer dans celui ci la class<?> avec l'url aussi
+ajouter une attribut supplementaire ClassMethode et dont celui sera une list et stockera si il peut acceder a un GET ou POST ou les deux
+creer deux nouvelle annotation celle pour get et l'autre pour post et l'un prendra en compte le get et l'autre le post
+

@@ -6,18 +6,16 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Map;
 
 /**
      * Utility responsible for building the argument list passed to @InvokeMe methods
      * from the incoming {@link HttpServletRequest}. Parameters are matched by name:
      * - {@link HttpServletRequest} and {@link HttpServletResponse} are injected directly.
      * - Simple types (String, primitive wrappers, primitives, enums) are populated from
-     *   request parameters with the same name. When conversion fails, primitives fall back
-     *   to their default value while wrapper types become {@code null}.
-     *
-     * Note: placeholder segments in the URL (e.g. {id}) are currently ignored; only
-     * form/query parameters are mapped.
-     */
+ *   path variables (if present) or request parameters with the same name. When conversion fails,
+ *   primitives fall back to their default value while wrapper types become {@code null}.
+ */
 public final class RequestParameterMapper {
     private RequestParameterMapper() {}
 
@@ -28,6 +26,7 @@ public final class RequestParameterMapper {
                                String annotatedPath) {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
+        Map<String, String> pathVars = PathVariableExtractor.extract(requestPath, annotatedPath);
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> type = parameter.getType();
@@ -42,7 +41,10 @@ public final class RequestParameterMapper {
             }
 
             String name = resolveName(parameter);
-            String rawValue = (req != null) ? req.getParameter(name) : null;
+            String rawValue = pathVars.get(name);
+            if (rawValue == null && req != null) {
+                rawValue = req.getParameter(name);
+            }
             args[i] = convert(rawValue, type);
         }
         return args;
