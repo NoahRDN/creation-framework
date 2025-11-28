@@ -33,7 +33,8 @@ public class RouteProcessor {
             if (r.getSource() != RouteInfo.Source.ANNOTATION) continue;
             String path = r.getUrl();
             String execPath = path;
-            if (path.contains("{") && path.contains("}")) {
+            boolean hasPlaceholder = path.contains("{") && path.contains("}");
+            if (hasPlaceholder) {
                 execPath = path.replaceAll("\\{[^/]+\\}", "123"); // sample value for placeholder
                 System.out.println("=== Executing annotated handlers for path: " + execPath + " (pattern: " + path + ") ===");
             } else {
@@ -45,7 +46,7 @@ public class RouteProcessor {
                 try {
                     Class<?> c = Class.forName(className);
                     try {
-                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, null, null);
+                        List<InvocationResult> results = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, execPath, null, null);
                         for (InvocationResult result : results) {
                             if (!result.invoked()) {
                                 System.out.println("      -> Ignoré (type non supporté) : "
