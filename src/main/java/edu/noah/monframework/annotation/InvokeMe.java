@@ -10,7 +10,8 @@ import java.lang.annotation.Target;
  * Static and instance methods are supported. Methods can be associated with a logical
  * {@code path} used by the runtime to invoke them based on incoming URLs. Parameters are
  * mapped from the {@link jakarta.servlet.http.HttpServletRequest} using the parameter name
- * (e.g. a form field named "email" will bind to a method parameter named "email").
+ * (e.g. a form field named "email" will bind to a method parameter named "email"), or a
+ * specific name provided via {@link RequestParam} on each parameter.
  *
  * The annotation also accepts a {@code path} (e.g. "/hello") which can be used to lookup and
  * execute the method by URL or logical route via the executor.
