@@ -7,17 +7,24 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
 /**
- * Utility responsible for building the argument list passed to @InvokeMe methods
- * from the incoming {@link HttpServletRequest}. Parameters are matched by name:
- * - {@link HttpServletRequest} and {@link HttpServletResponse} are injected directly.
- * - Simple types (String, primitive wrappers, primitives, enums) are populated from
- *   request parameters with the same name. When conversion fails, primitives fall back
- *   to their default value while wrapper types become {@code null}.
- */
+     * Utility responsible for building the argument list passed to @InvokeMe methods
+     * from the incoming {@link HttpServletRequest}. Parameters are matched by name:
+     * - {@link HttpServletRequest} and {@link HttpServletResponse} are injected directly.
+     * - Simple types (String, primitive wrappers, primitives, enums) are populated from
+     *   request parameters with the same name. When conversion fails, primitives fall back
+     *   to their default value while wrapper types become {@code null}.
+     *
+     * Note: placeholder segments in the URL (e.g. {id}) are currently ignored; only
+     * form/query parameters are mapped.
+     */
 public final class RequestParameterMapper {
     private RequestParameterMapper() {}
 
-    public static Object[] map(Method method, HttpServletRequest req, HttpServletResponse resp) {
+    public static Object[] map(Method method,
+                               HttpServletRequest req,
+                               HttpServletResponse resp,
+                               String requestPath,
+                               String annotatedPath) {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
