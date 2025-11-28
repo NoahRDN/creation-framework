@@ -1,5 +1,6 @@
 package edu.noah.monframework.util;
 
+import edu.noah.monframework.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -40,11 +41,19 @@ public final class RequestParameterMapper {
                 continue;
             }
 
-            String name = parameter.getName();
+            String name = resolveName(parameter);
             String rawValue = (req != null) ? req.getParameter(name) : null;
             args[i] = convert(rawValue, type);
         }
         return args;
+    }
+
+    private static String resolveName(Parameter parameter) {
+        RequestParam rp = parameter.getAnnotation(RequestParam.class);
+        if (rp != null && rp.value() != null && !rp.value().isBlank()) {
+            return rp.value();
+        }
+        return parameter.getName();
     }
 
     private static Object convert(String rawValue, Class<?> targetType) {

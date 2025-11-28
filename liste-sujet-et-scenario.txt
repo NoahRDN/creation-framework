@@ -1,0 +1,27 @@
+- Asiana arguments amin'izay ilay méthodes mappena amin'ilay annotation @UrlMapping iny dia ilay arguments asaina tadiaviny ao amin'ny requête nahatongavana tany @le endpoint (request.getParameter({anaranle-argument})
+
+=======================================
+- dans la methode mapper, ajouter une ou des argument et dont celui sera similaire a celle donner via le formulaire donner par l'utilisateur. 
+scenario a implementer dans test: 
+- il y aura une page (l'un get et l'autre post), il sera rediriger vers l'url annoter (lier avec @controller et @InvokeMe). ces name seront ensuite identifier dans le parametre comme son nom coresspondra a celle dans le name des formulaire
+
+
+=========================================================
+
+
+Mamorona annotation @RequestParam ho an'ilay arguments anle fonction endpoint dia ilay valeur ao anatiny no clé hitadiavana anle paramètre anatinle requête 
+Ohatra hoe raha misy 
+voidfonctionTest(@RequestParam("nbr") int nombre) dia tadiavina @ request.getParameter("nbr") ilay valeur tokony hi-invoke-na anle méthode fonctionTest
+
+------------------------------------------------------------------
+creation d'une annotation RequestParam
+dans le parametre du methode annoter, il y aura une nouvelle annotation @RequestParam("id") qui stoquera le nom donner depuis le formulaire et le variable a cote sera celle qui heritera automatiquement de cette valeur apres et sera utiliser dans le code apres: voidfonctionTest(@RequestParam("nbr") int nombre)
+scenario a faire dans test : 
+creation de formulaire, faire passer vers l'url avec la methode annoter et avec @RequestParam et puis @request utilisera cette nom passer depuis le formulaire et injectera dans la variable palcer a cote de l'annotation @RequestParam apres et sera utilsier dans le code 
+
+
+===============================================================================
+permettre a mon framework de faire passer les donner donne dans modelView vers le le front-end aussi. 
+scenario dans test:
+- une classe @Controller qui aura une annotation methode (Invoke) sur la methode aura une url. durant son traitement, il prendrera des donnee de test dans la base et ensuite passera au modelView. durant l'affihage avec la paeg a afficher donner au modelView, les donner passer par le modelView seront aussi afficher. 
+remarque: pour la connection a la base, une simple getCon() classique avec postgres et avec une .jar postgres sera effectuer. 
