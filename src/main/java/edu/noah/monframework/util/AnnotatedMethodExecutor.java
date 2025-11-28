@@ -1,6 +1,8 @@
 package edu.noah.monframework.util;
 
 import edu.noah.monframework.annotation.InvokeMe;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -11,11 +13,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Utility to discover and execute methods annotated with {@link InvokeMe}.
- *
- * Usage examples:
- * - AnnotatedMethodExecutor.executeAnnotatedMethods(new MyClass());
- * - AnnotatedMethodExecutor.executeAnnotatedMethods(MyClass.class);
+ * Utility to discover and execute methods annotated with {@link InvokeMe}. It can
+ * now inject request parameters into handler method arguments by matching parameter
+ * names to form/query names.
  */
 public class AnnotatedMethodExecutor {
 
@@ -28,7 +28,10 @@ public class AnnotatedMethodExecutor {
         Class<?> clazz = instance.getClass();
         List<Method> methods = getAnnotatedMethods(clazz);
         for (Method m : methods) {
-            invokeMethod(instance, m);
+            if (m.getParameterCount() != 0) {
+                throw new IllegalStateException("Annotated method must have no parameters: " + m);
+            }
+            invokeMethod(instance, m, new Object[0]);
         }
     }
 
@@ -41,12 +44,18 @@ public class AnnotatedMethodExecutor {
         Object instance = null;
         for (Method m : methods) {
             if (Modifier.isStatic(m.getModifiers())) {
-                invokeStaticMethod(m);
+                if (m.getParameterCount() != 0) {
+                    throw new IllegalStateException("Annotated static method must have no parameters: " + m);
+                }
+                invokeStaticMethod(m, new Object[0]);
             } else {
                 if (instance == null) {
                     instance = instantiate(clazz);
                 }
-                invokeMethod(instance, m);
+                if (m.getParameterCount() != 0) {
+                    throw new IllegalStateException("Annotated method must have no parameters: " + m);
+                }
+                invokeMethod(instance, m, new Object[0]);
             }
         }
     }
@@ -63,25 +72,19 @@ public class AnnotatedMethodExecutor {
         }
     }
 
-    private static Object invokeStaticMethod(Method m) {
+    private static Object invokeStaticMethod(Method m, Object[] args) {
         try {
             if (!m.canAccess(null)) m.setAccessible(true);
-            if (m.getParameterCount() != 0) {
-                throw new IllegalStateException("Annotated static method must have no parameters: " + m);
-            }
-            return m.invoke(null);
+            return m.invoke(null, args == null ? new Object[0] : args);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Failed to invoke static method " + m, e);
         }
     }
 
-    private static Object invokeMethod(Object instance, Method m) {
+    private static Object invokeMethod(Object instance, Method m, Object[] args) {
         try {
             if (!m.canAccess(instance)) m.setAccessible(true);
-            if (m.getParameterCount() != 0) {
-                throw new IllegalStateException("Annotated method must have no parameters: " + m);
-            }
-            return m.invoke(instance);
+            return m.invoke(instance, args == null ? new Object[0] : args);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Failed to invoke method " + m + " on " + instance, e);
         }
@@ -102,12 +105,21 @@ public class AnnotatedMethodExecutor {
         return out;
     }
 
-    /** Execute annotated methods whose annotation path matches the provided request path.
-    * Supports exact matches and placeholder patterns like "/hello/{id}".
-    * If multiple methods declare the same path, they are executed in a deterministic order (by
-    * annotation path then method name).
-     */
+    /** Convenience overload when no servlet request/response context is available. */
     public static List<InvocationResult> executeAnnotatedMethodsForPath(Class<?> clazz, String path) {
+        return executeAnnotatedMethodsForPath(clazz, path, null, null);
+    }
+
+    /**
+     * Execute annotated methods whose annotation path matches the provided request path.
+     * Supports exact matches and placeholder patterns like "/hello/{id}".
+     * If multiple methods declare the same path, they are executed in a deterministic order (by
+     * annotation path then method name).
+     */
+    public static List<InvocationResult> executeAnnotatedMethodsForPath(Class<?> clazz,
+                                                                        String path,
+                                                                        HttpServletRequest req,
+                                                                        HttpServletResponse resp) {
         if (path == null) throw new IllegalArgumentException("path must not be null");
         List<MethodCandidate> candidates = collectCandidates(clazz, path);
         List<InvocationResult> invoked = new ArrayList<>();
@@ -118,12 +130,13 @@ public class AnnotatedMethodExecutor {
                 invoked.add(new InvocationResult(method, null, false));
                 continue;
             }
+            Object[] args = RequestParameterMapper.map(method, req, resp);
             Object returnValue;
             if (Modifier.isStatic(method.getModifiers())) {
-                returnValue = invokeStaticMethod(method);
+                returnValue = invokeStaticMethod(method, args);
             } else {
                 if (instance == null) instance = instantiate(clazz);
-                returnValue = invokeMethod(instance, method);
+                returnValue = invokeMethod(instance, method, args);
             }
             invoked.add(new InvocationResult(method, returnValue, true));
         }
@@ -131,7 +144,10 @@ public class AnnotatedMethodExecutor {
     }
 
     /** Execute annotated methods on a specific instance whose annotation path equals the provided path. */
-    public static List<InvocationResult> executeAnnotatedMethodsForPath(Object instance, String path) {
+    public static List<InvocationResult> executeAnnotatedMethodsForPath(Object instance,
+                                                                        String path,
+                                                                        HttpServletRequest req,
+                                                                        HttpServletResponse resp) {
         if (instance == null) throw new IllegalArgumentException("instance must not be null");
         if (path == null) throw new IllegalArgumentException("path must not be null");
         Class<?> clazz = instance.getClass();
@@ -143,10 +159,16 @@ public class AnnotatedMethodExecutor {
                 invoked.add(new InvocationResult(method, null, false));
                 continue;
             }
-            Object returnValue = invokeMethod(instance, method);
+            Object[] args = RequestParameterMapper.map(method, req, resp);
+            Object returnValue = invokeMethod(instance, method, args);
             invoked.add(new InvocationResult(method, returnValue, true));
         }
         return invoked;
+    }
+
+    /** Convenience overload for instance execution without servlet context. */
+    public static List<InvocationResult> executeAnnotatedMethodsForPath(Object instance, String path) {
+        return executeAnnotatedMethodsForPath(instance, path, null, null);
     }
 
     private record MethodCandidate(Method method, boolean supported) {}
@@ -156,7 +178,7 @@ public class AnnotatedMethodExecutor {
         List<MethodCandidate> candidates = new ArrayList<>();
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
-            if (a != null && path.equals(a.path())) {
+            if (matchesPath(path, a)) {
                 boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType());
                 candidates.add(new MethodCandidate(m, supported));
             }

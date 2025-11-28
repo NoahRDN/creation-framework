@@ -7,9 +7,10 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a method to be discovered and executed reflectively by {@code AnnotatedMethodExecutor}.
- * Methods annotated with @InvokeMe must be no-arg (zero parameters). Static and instance
- * methods are supported. Methods can be associated with a logical {@code path} used by
- * the runtime to invoke them based on incoming URLs.
+ * Static and instance methods are supported. Methods can be associated with a logical
+ * {@code path} used by the runtime to invoke them based on incoming URLs. Parameters are
+ * mapped from the {@link jakarta.servlet.http.HttpServletRequest} using the parameter name
+ * (e.g. a form field named "email" will bind to a method parameter named "email").
  *
  * The annotation also accepts a {@code path} (e.g. "/hello") which can be used to lookup and
  * execute the method by URL or logical route via the executor.

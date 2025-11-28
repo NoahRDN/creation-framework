@@ -53,7 +53,7 @@ public class AnnotatedRouteRegistry {
 
                     try {
                         List<InvocationResult> executed =
-                                AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path);
+                                AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, req, resp);
 
                         if (executed.isEmpty()) {
                             out.println("<div style='color:orange'>No @InvokeMe method found for this path in "
