@@ -57,7 +57,15 @@ public class RouteProcessor {
                                 System.out.println("      -> Retour String: " + result.returnValue());
                             } else if (ModelView.class.isAssignableFrom(returnType)) {
                                 ModelView mv = (ModelView) result.returnValue();
-                                System.out.println("      -> ModelView vers: " + (mv == null ? "null" : mv.getView()));
+                                if (mv == null) {
+                                    System.out.println("      -> ModelView vers: null");
+                                } else {
+                                    System.out.println("      -> ModelView vers: " + mv.getView());
+                                    if (!mv.getModel().isEmpty()) {
+                                        System.out.println("         model data:");
+                                        mv.getModel().forEach((k, v) -> System.out.println("           - " + k + " = " + v));
+                                    }
+                                }
                             }
                         }
                     } catch (Throwable t) {
