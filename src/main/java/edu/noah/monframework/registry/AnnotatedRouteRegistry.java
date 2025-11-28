@@ -171,6 +171,13 @@ public class AnnotatedRouteRegistry {
             return false;
         }
 
+        // Inject model data as request attributes so the view can render them.
+        for (Map.Entry<String, Object> entry : mv.getModel().entrySet()) {
+            String key = entry.getKey();
+            if (key == null || key.isBlank()) continue;
+            req.setAttribute(key, entry.getValue());
+        }
+
         // IMPORTANT: forward()
         dispatcher.forward(req, resp);
         return true;
