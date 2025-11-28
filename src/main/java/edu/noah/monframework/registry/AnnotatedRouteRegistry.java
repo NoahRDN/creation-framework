@@ -25,7 +25,7 @@ import edu.noah.monframework.util.ControllerScanner;
  */
 public class AnnotatedRouteRegistry {
 
-    private static final Map<String, List<Class<?>>> ROUTES = new LinkedHashMap<>();
+    private static final Map<String, ClassMethode> ROUTES = new LinkedHashMap<>();
 
     // ============================================================
     //  MAIN EXECUTION ENTRYPOINT
@@ -118,9 +118,9 @@ public class AnnotatedRouteRegistry {
     private static List<RouteMatch> findMatchingRoutes(String requestPath) {
         List<RouteMatch> matches = new ArrayList<>();
 
-        for (Map.Entry<String, List<Class<?>>> entry : ROUTES.entrySet()) {
+        for (Map.Entry<String, ClassMethode> entry : ROUTES.entrySet()) {
             if (RoutePathMatcher.matches(requestPath, entry.getKey())) {
-                matches.add(new RouteMatch(entry.getKey(), entry.getValue()));
+                matches.add(new RouteMatch(entry.getKey(), entry.getValue().getHandlers()));
             }
         }
 
@@ -207,7 +207,8 @@ public class AnnotatedRouteRegistry {
             InvokeMe inv = m.getAnnotation(InvokeMe.class);
             if (inv == null || inv.path().isEmpty()) continue;
 
-            ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
+            ClassMethode cm = ROUTES.computeIfAbsent(inv.path(), ClassMethode::new);
+            cm.addHandler(clazz);
         }
     }
 
