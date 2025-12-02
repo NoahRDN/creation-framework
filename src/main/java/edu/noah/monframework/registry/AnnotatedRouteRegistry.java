@@ -1,6 +1,8 @@
 package edu.noah.monframework.registry;
 
 import edu.noah.monframework.annotation.InvokeMe;
+import edu.noah.monframework.annotation.GetMapping;
+import edu.noah.monframework.annotation.PostMapping;
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
 import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
 import edu.noah.monframework.util.ResourceHelper;
@@ -25,7 +27,7 @@ import edu.noah.monframework.util.ControllerScanner;
  */
 public class AnnotatedRouteRegistry {
 
-    private static final Map<String, List<Class<?>>> ROUTES = new LinkedHashMap<>();
+    private static final Map<String, ClassMethode> ROUTES = new LinkedHashMap<>();
 
     // ============================================================
     //  MAIN EXECUTION ENTRYPOINT
@@ -37,14 +39,26 @@ public class AnnotatedRouteRegistry {
 
         List<RouteMatch> matches = findMatchingRoutes(path);
         if (matches.isEmpty()) return false;
+        String httpMethod = (req != null) ? req.getMethod() : null;
 
         resp.setContentType("text/html;charset=UTF-8");
 
+        boolean methodRejected = false;
+        boolean executedAny = false;
         try (PrintWriter out = resp.getWriter()) {
             out.println("<html><body>");
             out.println("<h2>URL captured with annotation: " + escapeHtml(path) + "</h2>");
+            if (httpMethod != null) {
+                out.println("<div>HTTP Method: " + escapeHtml(httpMethod) + "</div>");
+            }
 
             for (RouteMatch match : matches) {
+                if (!match.classMethode.isMethodAllowed(httpMethod)) {
+                    methodRejected = true;
+                    out.println("<div style='color:red'>HTTP method not allowed for this route: "
+                            + escapeHtml(String.valueOf(httpMethod)) + "</div>");
+                    continue;
+                }
                 for (Class<?> c : match.handlers) {
 
                     out.println("<div>Executing handlers in class: "
@@ -75,6 +89,7 @@ public class AnnotatedRouteRegistry {
                             }
 
                             // Method executed successfully
+                            executedAny = true;
                             out.println("<div style='color:green'>Executed: "
                                     + escapeHtml(c.getName() + "#" + method.getName()) + "</div>");
 
@@ -107,7 +122,10 @@ public class AnnotatedRouteRegistry {
             out.println("</body></html>");
         }
 
-        return true;
+        if (!executedAny && methodRejected) {
+            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+        }
+        return executedAny || methodRejected;
     }
 
     // ============================================================
@@ -118,7 +136,7 @@ public class AnnotatedRouteRegistry {
     private static List<RouteMatch> findMatchingRoutes(String requestPath) {
         List<RouteMatch> matches = new ArrayList<>();
 
-        for (Map.Entry<String, List<Class<?>>> entry : ROUTES.entrySet()) {
+        for (Map.Entry<String, ClassMethode> entry : ROUTES.entrySet()) {
             if (RoutePathMatcher.matches(requestPath, entry.getKey())) {
                 matches.add(new RouteMatch(entry.getKey(), entry.getValue()));
             }
@@ -129,11 +147,13 @@ public class AnnotatedRouteRegistry {
 
     private static final class RouteMatch {
         final String pattern;
+        final ClassMethode classMethode;
         final List<Class<?>> handlers;
 
-        RouteMatch(String pattern, List<Class<?>> handlers) {
+        RouteMatch(String pattern, ClassMethode classMethode) {
             this.pattern = pattern;
-            this.handlers = handlers;
+            this.classMethode = classMethode;
+            this.handlers = classMethode.getHandlers();
         }
     }
 
@@ -207,7 +227,19 @@ public class AnnotatedRouteRegistry {
             InvokeMe inv = m.getAnnotation(InvokeMe.class);
             if (inv == null || inv.path().isEmpty()) continue;
 
-            ROUTES.computeIfAbsent(inv.path(), k -> new ArrayList<>()).add(clazz);
+            ClassMethode cm = ROUTES.computeIfAbsent(inv.path(), ClassMethode::new);
+            cm.addHandler(clazz);
+
+            // Register allowed HTTP methods based on annotations
+            boolean hasGet = m.isAnnotationPresent(GetMapping.class);
+            boolean hasPost = m.isAnnotationPresent(PostMapping.class);
+            if (hasGet) cm.addHttpMethod("GET");
+            if (hasPost) cm.addHttpMethod("POST");
+            if (!hasGet && !hasPost) {
+                // Default: allow both when no specific mapping is declared.
+                cm.addHttpMethod("GET");
+                cm.addHttpMethod("POST");
+            }
         }
     }
 
