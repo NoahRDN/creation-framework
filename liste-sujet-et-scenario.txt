@@ -44,3 +44,20 @@ utilser la classe classMethode dans le map <string, ClassMethode> dans le map et
 ajouter une attribut supplementaire ClassMethode et dont celui sera une list et stockera si il peut acceder a un GET ou POST ou les deux
 creer deux nouvelle annotation celle pour get et l'autre pour post et l'un prendra en compte le get et l'autre le post
 
+-------------------------------------------------------
+sprint 8
+traite donne vue vers controller:
+scenario:
+- map <string, Object> (name, value)
++++++++++++++++++++++++++++++
+On crée unex² formulaire dans le view (avec des checkbox aussi), et les donnees seront envoye dans le controller avec les methode qui son associer a l'annotation  InvokeMe et dans le parametre de cette fonction sera map <string, Object> (name, value).  Ils pourront prendre les valeurs de checkbox aussi 
+On peut caster aussi apres. 
+--------------------------------------
+
+
+***********************************
+a faire: 
+- comprendre le sujet des sprint a faire (15 mn)
+- traiter le sujet (45 mn)
+- rerediger le scenario de chaque sprint pour comprendre les choses a faire 
+- faire une readme sur le lancement du code et le fonctionnement du code

@@ -6,12 +6,16 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
      * Utility responsible for building the argument list passed to @InvokeMe methods
      * from the incoming {@link HttpServletRequest}. Parameters are matched by name:
      * - {@link HttpServletRequest} and {@link HttpServletResponse} are injected directly.
+     * - {@link java.util.Map} parameters receive all request params (including checkbox
+     *   multi-values) merged with any path variables.
      * - Simple types (String, primitive wrappers, primitives, enums) are populated from
  *   path variables (if present) or request parameters with the same name. When conversion fails,
  *   primitives fall back to their default value while wrapper types become {@code null}.
@@ -27,6 +31,7 @@ public final class RequestParameterMapper {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
         Map<String, String> pathVars = PathVariableExtractor.extract(requestPath, annotatedPath);
+        Map<String, Object> aggregated = buildParameterMap(req, pathVars);
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> type = parameter.getType();
@@ -39,6 +44,11 @@ public final class RequestParameterMapper {
                 args[i] = resp;
                 continue;
             }
+            if (Map.class.isAssignableFrom(type)) {
+                // Provide a fresh copy so handlers can mutate safely.
+                args[i] = new LinkedHashMap<>(aggregated);
+                continue;
+            }
 
             String name = resolveName(parameter);
             String rawValue = pathVars.get(name);
@@ -48,6 +58,39 @@ public final class RequestParameterMapper {
             args[i] = convert(rawValue, type);
         }
         return args;
+    }
+
+    private static Map<String, Object> buildParameterMap(HttpServletRequest req, Map<String, String> pathVars) {
+        Map<String, Object> data = new LinkedHashMap<>();
+
+        if (req != null) {
+            Map<String, String[]> requestParams = req.getParameterMap();
+            for (Map.Entry<String, String[]> entry : requestParams.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || key.isBlank()) continue;
+                String[] values = entry.getValue();
+                Object value;
+                if (values == null) {
+                    value = null;
+                } else if (values.length == 1) {
+                    value = values[0];
+                } else {
+                    // Preserve checkbox/multi-select values.
+                    value = Arrays.asList(values);
+                }
+                data.put(key, value);
+            }
+        }
+
+        if (pathVars != null) {
+            for (Map.Entry<String, String> entry : pathVars.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || key.isBlank()) continue;
+                data.put(key, entry.getValue());
+            }
+        }
+
+        return data;
     }
 
     private static String resolveName(Parameter parameter) {

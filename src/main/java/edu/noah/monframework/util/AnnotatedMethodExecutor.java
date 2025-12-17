@@ -14,9 +14,9 @@ import java.util.List;
 
 /**
  * Utility to discover and execute methods annotated with {@link InvokeMe}. It can
- * inject request parameters into handler method arguments by matching parameter
- * names to form/query names, but this mapping is only enabled for annotated paths
- * that contain placeholders (e.g. "/user/{id}").
+ * inject request/query/form parameters (including checkbox multi-values) and path
+ * variables into handler arguments by matching parameter names or @RequestParam
+ * aliases.
  */
 public class AnnotatedMethodExecutor {
 
@@ -131,9 +131,7 @@ public class AnnotatedMethodExecutor {
                 invoked.add(new InvocationResult(method, null, false));
                 continue;
             }
-            Object[] args = candidate.paramsAllowed()
-                    ? RequestParameterMapper.map(method, req, resp, path, candidate.annotatedPath())
-                    : new Object[0];
+            Object[] args = RequestParameterMapper.map(method, req, resp, path, candidate.annotatedPath());
             Object returnValue;
             if (Modifier.isStatic(method.getModifiers())) {
                 returnValue = invokeStaticMethod(method, args);
@@ -162,9 +160,7 @@ public class AnnotatedMethodExecutor {
                 invoked.add(new InvocationResult(method, null, false));
                 continue;
             }
-            Object[] args = candidate.paramsAllowed()
-                    ? RequestParameterMapper.map(method, req, resp, path, candidate.annotatedPath())
-                    : new Object[0];
+            Object[] args = RequestParameterMapper.map(method, req, resp, path, candidate.annotatedPath());
             Object returnValue = invokeMethod(instance, method, args);
             invoked.add(new InvocationResult(method, returnValue, true));
         }
@@ -176,7 +172,7 @@ public class AnnotatedMethodExecutor {
         return executeAnnotatedMethodsForPath(instance, path, null, null);
     }
 
-    private record MethodCandidate(Method method, boolean supported, String annotatedPath, boolean paramsAllowed) {}
+    private record MethodCandidate(Method method, boolean supported, String annotatedPath) {}
 
     private static List<MethodCandidate> collectCandidates(Class<?> clazz, String path) {
         List<Method> all = getAnnotatedMethods(clazz);
@@ -184,10 +180,8 @@ public class AnnotatedMethodExecutor {
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (matchesPath(path, a)) {
-                boolean allowParams = annotatedPathAllowsParams(a);
-                boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType())
-                        && (allowParams || m.getParameterCount() == 0);
-                candidates.add(new MethodCandidate(m, supported, a.path(), allowParams));
+                boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType());
+                candidates.add(new MethodCandidate(m, supported, a.path()));
             }
         }
         return candidates;
@@ -195,11 +189,5 @@ public class AnnotatedMethodExecutor {
 
     private static boolean matchesPath(String path, InvokeMe annotation) {
         return annotation != null && RoutePathMatcher.matches(path, annotation.path());
-    }
-
-    private static boolean annotatedPathAllowsParams(InvokeMe annotation) {
-        if (annotation == null) return false;
-        String p = annotation.path();
-        return p != null && p.contains("{") && p.contains("}");
     }
 }
