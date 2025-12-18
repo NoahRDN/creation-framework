@@ -4,11 +4,18 @@ import edu.noah.monframework.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
      * Utility responsible for building the argument list passed to @InvokeMe methods
@@ -16,6 +23,8 @@ import java.util.Map;
      * - {@link HttpServletRequest} and {@link HttpServletResponse} are injected directly.
      * - {@link java.util.Map} parameters receive all request params (including checkbox
      *   multi-values) merged with any path variables.
+     * - Custom object types are instantiated and populated from request parameters using
+     *   dot-notation with the parameter name as prefix (e.g. {@code user.name}, {@code user.address.city}).
      * - Simple types (String, primitive wrappers, primitives, enums) are populated from
  *   path variables (if present) or request parameters with the same name. When conversion fails,
  *   primitives fall back to their default value while wrapper types become {@code null}.
@@ -51,11 +60,14 @@ public final class RequestParameterMapper {
             }
 
             String name = resolveName(parameter);
-            String rawValue = pathVars.get(name);
-            if (rawValue == null && req != null) {
-                rawValue = req.getParameter(name);
+            Object raw = aggregated.get(name);
+
+            if (isSimpleType(type)) {
+                String rawValue = rawToString(raw, pathVars.get(name));
+                args[i] = convert(rawValue, type);
+            } else {
+                args[i] = bindObject(type, name, aggregated);
             }
-            args[i] = convert(rawValue, type);
         }
         return args;
     }
@@ -91,6 +103,104 @@ public final class RequestParameterMapper {
         }
 
         return data;
+    }
+
+    private static Object bindObject(Class<?> type, String prefix, Map<String, Object> source) {
+        try {
+            Object instance = instantiate(type);
+            for (Field field : type.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) continue;
+                String keyWithPrefix = (prefix == null || prefix.isBlank())
+                        ? field.getName()
+                        : prefix + "." + field.getName();
+
+                Object raw = source.get(keyWithPrefix);
+                if (raw == null) {
+                    raw = source.get(field.getName()); // fallback sans prefix si rien trouvé
+                }
+
+                Object value;
+                Class<?> fieldType = field.getType();
+                if (isSimpleType(fieldType)) {
+                    value = convert(rawToString(raw, null), fieldType);
+                } else if (Map.class.isAssignableFrom(fieldType)) {
+                    value = new LinkedHashMap<>(source);
+                } else if (Collection.class.isAssignableFrom(fieldType)) {
+                    value = toCollection(raw);
+                } else if (fieldType.isArray() && isSimpleType(fieldType.getComponentType())) {
+                    value = toArray(raw, fieldType.getComponentType());
+                } else {
+                    value = bindObject(fieldType, keyWithPrefix, source);
+                }
+
+                if (!field.canAccess(instance)) field.setAccessible(true);
+                field.set(instance, value);
+            }
+            return instance;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Object instantiate(Class<?> type) throws Exception {
+        if (type.isInterface() || Modifier.isAbstract(type.getModifiers())) {
+            throw new IllegalArgumentException("Cannot instantiate type: " + type.getName());
+        }
+        var ctor = type.getDeclaredConstructor();
+        if (!ctor.canAccess(null)) ctor.setAccessible(true);
+        return ctor.newInstance();
+    }
+
+    private static boolean isSimpleType(Class<?> targetType) {
+        if (targetType == null) return false;
+        return String.class.equals(targetType)
+                || targetType.isEnum()
+                || Integer.class.equals(targetType) || int.class.equals(targetType)
+                || Long.class.equals(targetType) || long.class.equals(targetType)
+                || Double.class.equals(targetType) || double.class.equals(targetType)
+                || Boolean.class.equals(targetType) || boolean.class.equals(targetType)
+                || Float.class.equals(targetType) || float.class.equals(targetType)
+                || Short.class.equals(targetType) || short.class.equals(targetType);
+    }
+
+    private static String rawToString(Object raw, String fallback) {
+        if (raw == null) return fallback;
+        if (raw instanceof Iterable<?> it) {
+            for (Object o : it) return Objects.toString(o, fallback);
+            return fallback;
+        }
+        if (raw.getClass().isArray()) {
+            Object[] arr = (Object[]) raw;
+            return arr.length > 0 ? Objects.toString(arr[0], fallback) : fallback;
+        }
+        return Objects.toString(raw, fallback);
+    }
+
+    private static Collection<Object> toCollection(Object raw) {
+        List<Object> out = new ArrayList<>();
+        if (raw == null) return out;
+        if (raw instanceof Iterable<?> it) {
+            for (Object o : it) out.add(o);
+            return out;
+        }
+        if (raw.getClass().isArray()) {
+            Object[] arr = (Object[]) raw;
+            out.addAll(Arrays.asList(arr));
+            return out;
+        }
+        out.add(raw);
+        return out;
+    }
+
+    private static Object toArray(Object raw, Class<?> componentType) {
+        List<Object> items = new ArrayList<>(toCollection(raw));
+        Object array = Array.newInstance(componentType, items.size());
+        for (int i = 0; i < items.size(); i++) {
+            String str = rawToString(items.get(i), null);
+            Object converted = convert(str, componentType);
+            Array.set(array, i, converted);
+        }
+        return array;
     }
 
     private static String resolveName(Parameter parameter) {
