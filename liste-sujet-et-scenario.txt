@@ -56,6 +56,16 @@ On peut caster aussi apres.
 sprint 8 bis:
 le formulaire peut envoyer une directement un objet, c'est a dire, il envoye les information et puis un objet sera directement creer et instancier et puis on peut juste prendre cette objet apres et l'utiliser. Un formulaire peut instancier plusieurs objet et peut instancier aussi un objet dans objet c'est a dire, si dans l'objet, l'attibut est un objet, cette atribut objet va aussi etre instancier.
 
+---------------
+sprint 9: 
+creer une annotation @ConvertJson pour convertir le type de retour envoyer vers le view en Json. et n'oublie pas aussi qu'il devrait aussi preciser le code a envoyer avec des metadata si necessaire avant de l'envoyer vers le view. en outre comme une apirest qui envoyer des donner vers le view si on compare avec ce qui existe deja.  
+
+
+--------------------
+sprint 10: 
+
+
+
 ***********************************
 a faire: 
 - comprendre le sujet des sprint a faire (15 mn)

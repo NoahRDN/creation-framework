@@ -1,5 +1,6 @@
 package edu.noah.monframework.util;
 
+import edu.noah.monframework.annotation.FormObject;
 import edu.noah.monframework.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,10 +13,14 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
      * Utility responsible for building the argument list passed to @InvokeMe methods
@@ -32,6 +37,8 @@ import java.util.Objects;
 public final class RequestParameterMapper {
     private RequestParameterMapper() {}
 
+    private static final Map<String, Map<String, Class<?>>> FORM_OBJECT_CACHE = new ConcurrentHashMap<>();
+
     public static Object[] map(Method method,
                                HttpServletRequest req,
                                HttpServletResponse resp,
@@ -41,6 +48,8 @@ public final class RequestParameterMapper {
         Object[] args = new Object[parameters.length];
         Map<String, String> pathVars = PathVariableExtractor.extract(requestPath, annotatedPath);
         Map<String, Object> aggregated = buildParameterMap(req, pathVars);
+        prebindAnnotatedFormObjects(method, aggregated);
+        prebindComplexParameters(parameters, aggregated);
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> type = parameter.getType();
@@ -66,7 +75,11 @@ public final class RequestParameterMapper {
                 String rawValue = rawToString(raw, pathVars.get(name));
                 args[i] = convert(rawValue, type);
             } else {
-                args[i] = bindObject(type, name, aggregated);
+                Object bound = raw;
+                if (bound == null || !type.isInstance(bound)) {
+                    bound = bindObject(type, name, aggregated);
+                }
+                args[i] = bound;
             }
         }
         return args;
@@ -103,6 +116,64 @@ public final class RequestParameterMapper {
         }
 
         return data;
+    }
+
+    private static void prebindAnnotatedFormObjects(Method method, Map<String, Object> aggregated) {
+        if (method == null || aggregated == null || aggregated.isEmpty()) return;
+        Set<String> prefixes = extractPrefixes(aggregated.keySet());
+        if (prefixes.isEmpty()) return;
+
+        String basePackage = method.getDeclaringClass().getPackageName();
+        Map<String, Class<?>> mapping = FORM_OBJECT_CACHE.computeIfAbsent(basePackage, key -> {
+            Map<String, Class<?>> out = new HashMap<>();
+            for (Class<?> c : ClassScanner.findAllClasses(basePackage)) {
+                FormObject fo = c.getAnnotation(FormObject.class);
+                if (fo == null) continue;
+                String name = fo.value();
+                if (name != null && !name.isBlank()) {
+                    out.put(name, c);
+                }
+            }
+            return Collections.unmodifiableMap(out);
+        });
+
+        if (mapping.isEmpty()) return;
+        for (String prefix : prefixes) {
+            if (aggregated.containsKey(prefix)) continue;
+            Class<?> type = mapping.get(prefix);
+            if (type == null) continue;
+            Object bound = bindObject(type, prefix, aggregated);
+            if (bound != null) aggregated.put(prefix, bound);
+        }
+    }
+
+    private static Set<String> extractPrefixes(Set<String> keys) {
+        if (keys == null || keys.isEmpty()) return Collections.emptySet();
+        java.util.Set<String> prefixes = new java.util.LinkedHashSet<>();
+        for (String key : keys) {
+            if (key == null) continue;
+            int dot = key.indexOf('.');
+            if (dot <= 0) continue;
+            String prefix = key.substring(0, dot);
+            if (!prefix.isBlank()) prefixes.add(prefix);
+        }
+        return prefixes;
+    }
+
+    private static void prebindComplexParameters(Parameter[] parameters, Map<String, Object> aggregated) {
+        for (Parameter parameter : parameters) {
+            Class<?> type = parameter.getType();
+            if (HttpServletRequest.class.isAssignableFrom(type)) continue;
+            if (HttpServletResponse.class.isAssignableFrom(type)) continue;
+            if (Map.class.isAssignableFrom(type)) continue;
+            if (isSimpleType(type)) continue;
+
+            String name = resolveName(parameter);
+            Object bound = bindObject(type, name, aggregated);
+            if (bound != null) {
+                aggregated.put(name, bound);
+            }
+        }
     }
 
     private static Object bindObject(Class<?> type, String prefix, Map<String, Object> source) {
