@@ -50,9 +50,20 @@ traite donne vue vers controller:
 scenario:
 - map <string, Object> (name, value)
 +++++++++++++++++++++++++++++
-On crée unex² formulaire dans le view (avec des checkbox aussi), et les donnees seront envoye dans le controller avec les methode qui son associer a l'annotation  InvokeMe et dans le parametre de cette fonction sera map <string, Object> (name, value).  Ils pourront prendre les valeurs de checkbox aussi 
+On crée une formulaire dans le view (avec des checkbox aussi), et les donnees seront envoye dans le controller avec les methode qui son associer a l'annotation  InvokeMe et dans le parametre de cette fonction sera map <string, Object> (name, value).  Ils pourront prendre les valeurs de checkbox aussi 
 On peut caster aussi apres. 
 --------------------------------------
+sprint 8 bis:
+le formulaire peut envoyer une directement un objet, c'est a dire, il envoye les information et puis un objet sera directement creer et instancier et puis on peut juste prendre cette objet apres et l'utiliser. Un formulaire peut instancier plusieurs objet et peut instancier aussi un objet dans objet c'est a dire, si dans l'objet, l'attibut est un objet, cette atribut objet va aussi etre instancier.
+
+---------------
+sprint 9: 
+creer une annotation @ConvertJson pour convertir le type de retour envoyer vers le view en Json. et n'oublie pas aussi qu'il devrait aussi preciser le code a envoyer avec des metadata si necessaire avant de l'envoyer vers le view. en outre comme une apirest qui envoyer des donner vers le view si on compare avec ce qui existe deja.  
+
+
+--------------------
+sprint 10: 
+
 
 
 ***********************************
