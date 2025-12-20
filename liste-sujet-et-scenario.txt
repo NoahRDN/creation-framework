@@ -63,7 +63,8 @@ creer une annotation @ConvertJson pour convertir le type de retour envoyer vers 
 
 --------------------
 sprint 10: 
-
+upload fichier, 
+ajout d'une formulaire pour l'upload fichier. 
 
 
 ***********************************

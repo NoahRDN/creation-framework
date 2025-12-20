@@ -180,7 +180,7 @@ public class AnnotatedMethodExecutor {
         for (Method m : all) {
             InvokeMe a = m.getAnnotation(InvokeMe.class);
             if (matchesPath(path, a)) {
-                boolean supported = HandlerReturnTypeValidator.isSupported(m.getReturnType());
+                boolean supported = HandlerReturnTypeValidator.isSupported(m);
                 candidates.add(new MethodCandidate(m, supported, a.path()));
             }
         }

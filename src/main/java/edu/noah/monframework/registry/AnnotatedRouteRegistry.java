@@ -3,10 +3,13 @@ package edu.noah.monframework.registry;
 import edu.noah.monframework.annotation.InvokeMe;
 import edu.noah.monframework.annotation.GetMapping;
 import edu.noah.monframework.annotation.PostMapping;
+import edu.noah.monframework.annotation.ConvertJson;
 import edu.noah.monframework.util.AnnotatedMethodExecutor;
 import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
+import edu.noah.monframework.util.JsonRenderer;
 import edu.noah.monframework.util.ResourceHelper;
 import edu.noah.monframework.web.ModelView;
+import edu.noah.monframework.web.JsonResponse;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
@@ -41,80 +44,98 @@ public class AnnotatedRouteRegistry {
         if (matches.isEmpty()) return false;
         String httpMethod = (req != null) ? req.getMethod() : null;
 
-        resp.setContentType("text/html;charset=UTF-8");
+        List<ExecutionBatch> batches = new ArrayList<>();
 
         boolean methodRejected = false;
         boolean executedAny = false;
+        // Phase 1: execute handlers and short-circuit if a @ConvertJson handler is found.
+        for (RouteMatch match : matches) {
+            if (!match.classMethode.isMethodAllowed(httpMethod)) {
+                methodRejected = true;
+                continue;
+            }
+            for (Class<?> c : match.handlers) {
+                List<InvocationResult> executed =
+                        AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, req, resp);
+                batches.add(new ExecutionBatch(match.pattern, c, executed));
+
+                for (InvocationResult result : executed) {
+                    Method method = result.method();
+                    if (result.invoked() && method.isAnnotationPresent(ConvertJson.class)) {
+                        ConvertJson cfg = method.getAnnotation(ConvertJson.class);
+                        if (result.returnValue() instanceof ModelView) {
+                            JsonResponse err = JsonResponse.of(
+                                    500,
+                                    Map.of("error", "ConvertJson cannot be used with ModelView return type"),
+                                    Map.of("reason", "Unsupported combination"));
+                            JsonRenderer.render(err, null, req, resp);
+                            return true;
+                        }
+                        JsonRenderer.render(result.returnValue(), cfg, req, resp);
+                        return true;
+                    }
+                    if (result.invoked()) executedAny = true;
+                }
+            }
+        }
+
+        // No JSON handler: render HTML diagnostics or forward ModelView/String like before.
+        resp.setContentType("text/html;charset=UTF-8");
         try (PrintWriter out = resp.getWriter()) {
             out.println("<html><body>");
             out.println("<h2>URL captured with annotation: " + escapeHtml(path) + "</h2>");
             if (httpMethod != null) {
                 out.println("<div>HTTP Method: " + escapeHtml(httpMethod) + "</div>");
             }
+            if (methodRejected) {
+                out.println("<div style='color:red'>HTTP method not allowed for this route: "
+                        + escapeHtml(String.valueOf(httpMethod)) + "</div>");
+            }
 
-            for (RouteMatch match : matches) {
-                if (!match.classMethode.isMethodAllowed(httpMethod)) {
-                    methodRejected = true;
-                    out.println("<div style='color:red'>HTTP method not allowed for this route: "
-                            + escapeHtml(String.valueOf(httpMethod)) + "</div>");
+            for (ExecutionBatch batch : batches) {
+                out.println("<div>Executing handlers in class: "
+                        + escapeHtml(batch.handlerClass().getName())
+                        + " (pattern: " + escapeHtml(batch.pattern()) + ")</div>");
+
+                if (batch.results().isEmpty()) {
+                    out.println("<div style='color:orange'>No @InvokeMe method found for this path in "
+                            + escapeHtml(batch.handlerClass().getName()) + "</div>");
                     continue;
                 }
-                for (Class<?> c : match.handlers) {
 
-                    out.println("<div>Executing handlers in class: "
-                            + escapeHtml(c.getName())
-                            + " (pattern: " + escapeHtml(match.pattern) + ")</div>");
+                for (InvocationResult result : batch.results()) {
+                    Method method = result.method();
 
-                    try {
-                        List<InvocationResult> executed =
-                                AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, req, resp);
+                    // Ignored method (unsupported return type)
+                    if (!result.invoked()) {
+                        out.println("<div style='color:red;margin-left:20px'>Ignored: "
+                                + escapeHtml(batch.handlerClass().getName() + "#" + method.getName())
+                                + " (unsupported return type: "
+                                + escapeHtml(method.getReturnType().getSimpleName())
+                                + ")</div>");
+                        continue;
+                    }
 
-                        if (executed.isEmpty()) {
-                            out.println("<div style='color:orange'>No @InvokeMe method found for this path in "
-                                    + escapeHtml(c.getName()) + "</div>");
-                            continue;
+                    // Method executed successfully
+                    executedAny = true;
+                    out.println("<div style='color:green'>Executed: "
+                            + escapeHtml(batch.handlerClass().getName() + "#" + method.getName()) + "</div>");
+
+                    // Handle return type
+                    Object raw = result.returnValue();
+                    Class<?> returnType = method.getReturnType();
+
+                    // ======== ModelView support ========
+                    if (ModelView.class.isAssignableFrom(returnType)) {
+                        if (handleModelViewResult(raw, req, resp)) {
+                            return true; // forward() has taken over the response
                         }
-
-                        for (InvocationResult result : executed) {
-                            Method method = result.method();
-
-                            // Ignored method (unsupported return type)
-                            if (!result.invoked()) {
-                                out.println("<div style='color:red;margin-left:20px'>Ignored: "
-                                        + escapeHtml(c.getName() + "#" + method.getName())
-                                        + " (unsupported return type: "
-                                        + escapeHtml(method.getReturnType().getSimpleName())
-                                        + ")</div>");
-                                continue;
-                            }
-
-                            // Method executed successfully
-                            executedAny = true;
-                            out.println("<div style='color:green'>Executed: "
-                                    + escapeHtml(c.getName() + "#" + method.getName()) + "</div>");
-
-                            // Handle return type
-                            Object raw = result.returnValue();
-                            Class<?> returnType = method.getReturnType();
-
-                            // ======== ModelView support ========
-                            if (ModelView.class.isAssignableFrom(returnType)) {
-                                if (handleModelViewResult(raw, req, resp)) {
-                                    return true; // forward() has taken over the response
-                                }
-                            }
-                            // ======== String support ========
-                            else if (String.class.equals(returnType)) {
-                                String rendered = (raw == null) ? "null" : raw.toString();
-                                out.println("<div style='margin-left:20px'>Returned content: "
-                                        + escapeHtml(rendered) + "</div>");
-                            }
-                        }
-
-                    } catch (Throwable t) {
-                        out.println("<div style='color:red'>Error while executing "
-                                + escapeHtml(c.getName()) + ": "
-                                + escapeHtml(t.getMessage()) + "</div>");
+                    }
+                    // ======== String support ========
+                    else if (String.class.equals(returnType)) {
+                        String rendered = (raw == null) ? "null" : raw.toString();
+                        out.println("<div style='margin-left:20px'>Returned content: "
+                                + escapeHtml(rendered) + "</div>");
                     }
                 }
             }
@@ -216,6 +237,7 @@ public class AnnotatedRouteRegistry {
     }
 
     private record ViewResolution(String dispatchPath) {}
+    private record ExecutionBatch(String pattern, Class<?> handlerClass, List<InvocationResult> results) {}
 
     // ============================================================
     //  REGISTRATION
