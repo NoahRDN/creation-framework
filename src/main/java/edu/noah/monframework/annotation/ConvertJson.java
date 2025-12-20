@@ -13,18 +13,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface ConvertJson {
-    /**
-     * HTTP status code to send with the JSON response.
-     */
-    int status() default 200;
+    /** HTTP status code to send with the JSON response (must be set explicitly). */
+    int status() default -1;
 
-    /**
-     * Optional message added to the "meta" section of the JSON response.
-     */
+    /** Optional message added to the "meta" section of the JSON response. */
     String message() default "";
 
-    /**
-     * Whether to include a "meta" object wrapping status/message/path/timestamp.
-     */
-    boolean includeMeta() default true;
+    /** Whether to include a "meta" object wrapping status/message/path/timestamp. */
+    boolean includeMeta() default false;
 }

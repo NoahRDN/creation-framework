@@ -1,6 +1,7 @@
 package edu.noah.monframework.util;
 
 import edu.noah.monframework.annotation.ConvertJson;
+import edu.noah.monframework.web.JsonResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -28,27 +29,42 @@ public final class JsonRenderer {
                                 ConvertJson config,
                                 HttpServletRequest req,
                                 HttpServletResponse resp) {
-        if (resp != null) {
-            resp.setContentType("application/json;charset=UTF-8");
-            if (config != null) {
-                resp.setStatus(config.status());
+        int statusCode = 200;
+        Object data = body;
+        Map<String, Object> meta = null;
+
+        if (body instanceof JsonResponse jr) {
+            if (jr.status() > 0) statusCode = jr.status();
+            data = jr.body();
+            if (jr.meta() != null && !jr.meta().isEmpty()) {
+                meta = new LinkedHashMap<>(jr.meta());
+            }
+        } else {
+            if (config != null && config.status() >= 100) {
+                statusCode = config.status();
+            }
+            if (config != null && (config.includeMeta() || (config.message() != null && !config.message().isBlank()))) {
+                meta = new LinkedHashMap<>();
+                meta.put("status", statusCode);
+                if (req != null && req.getRequestURI() != null) {
+                    meta.put("path", req.getRequestURI());
+                }
+                meta.put("timestamp", Instant.now().toString());
+                if (config.message() != null && !config.message().isBlank()) {
+                    meta.put("message", config.message());
+                }
             }
         }
 
-        Object payload = body;
-        if (config != null && config.includeMeta()) {
-            Map<String, Object> wrapper = new LinkedHashMap<>();
-            wrapper.put("data", body);
+        if (resp != null) {
+            resp.setContentType("application/json;charset=UTF-8");
+            resp.setStatus(statusCode);
+        }
 
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("status", config.status());
-            if (req != null && req.getRequestURI() != null) {
-                meta.put("path", req.getRequestURI());
-            }
-            meta.put("timestamp", Instant.now().toString());
-            if (!config.message().isBlank()) {
-                meta.put("message", config.message());
-            }
+        Object payload = data;
+        if (meta != null && !meta.isEmpty()) {
+            Map<String, Object> wrapper = new LinkedHashMap<>();
+            wrapper.put("data", data);
             wrapper.put("meta", meta);
             payload = wrapper;
         }

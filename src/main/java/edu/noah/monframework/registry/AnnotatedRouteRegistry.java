@@ -9,6 +9,7 @@ import edu.noah.monframework.util.AnnotatedMethodExecutor.InvocationResult;
 import edu.noah.monframework.util.JsonRenderer;
 import edu.noah.monframework.util.ResourceHelper;
 import edu.noah.monframework.web.ModelView;
+import edu.noah.monframework.web.JsonResponse;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
@@ -62,6 +63,14 @@ public class AnnotatedRouteRegistry {
                     Method method = result.method();
                     if (result.invoked() && method.isAnnotationPresent(ConvertJson.class)) {
                         ConvertJson cfg = method.getAnnotation(ConvertJson.class);
+                        if (result.returnValue() instanceof ModelView) {
+                            JsonResponse err = JsonResponse.of(
+                                    500,
+                                    Map.of("error", "ConvertJson cannot be used with ModelView return type"),
+                                    Map.of("reason", "Unsupported combination"));
+                            JsonRenderer.render(err, null, req, resp);
+                            return true;
+                        }
                         JsonRenderer.render(result.returnValue(), cfg, req, resp);
                         return true;
                     }
