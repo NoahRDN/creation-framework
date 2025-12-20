@@ -1,6 +1,7 @@
 package edu.noah.monframework.filter;
 
 import jakarta.servlet.*;
+import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,6 +13,7 @@ import edu.noah.monframework.registry.AnnotatedRouteRegistry;
 import edu.noah.monframework.util.ResourceHelper;
 
 @WebFilter("/*")
+@MultipartConfig
 public class MyFilter implements Filter {
 
     private static final String DEFAULT_PATH = "/";

@@ -4,12 +4,15 @@ import edu.noah.monframework.annotation.FormObject;
 import edu.noah.monframework.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Part;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -48,6 +51,10 @@ public final class RequestParameterMapper {
         Object[] args = new Object[parameters.length];
         Map<String, String> pathVars = PathVariableExtractor.extract(requestPath, annotatedPath);
         Map<String, Object> aggregated = buildParameterMap(req, pathVars);
+        Map<String, byte[]> uploadData = extractUploads(req);
+        for (Map.Entry<String, byte[]> e : uploadData.entrySet()) {
+            aggregated.putIfAbsent(e.getKey(), toBoxed(e.getValue()));
+        }
         prebindAnnotatedFormObjects(method, aggregated);
         prebindComplexParameters(parameters, aggregated);
         for (int i = 0; i < parameters.length; i++) {
@@ -63,8 +70,16 @@ public final class RequestParameterMapper {
                 continue;
             }
             if (Map.class.isAssignableFrom(type)) {
-                // Provide a fresh copy so handlers can mutate safely.
-                args[i] = new LinkedHashMap<>(aggregated);
+                if (wantsByteArrayMap(parameter)) {
+                    Map<String, Byte[]> boxed = new LinkedHashMap<>();
+                    for (Map.Entry<String, byte[]> entry : uploadData.entrySet()) {
+                        boxed.put(entry.getKey(), toBoxed(entry.getValue()));
+                    }
+                    args[i] = boxed;
+                } else {
+                    // Provide a fresh copy so handlers can mutate safely.
+                    args[i] = new LinkedHashMap<>(aggregated);
+                }
                 continue;
             }
 
@@ -116,6 +131,35 @@ public final class RequestParameterMapper {
         }
 
         return data;
+    }
+
+    private static Map<String, byte[]> extractUploads(HttpServletRequest req) {
+        Map<String, byte[]> uploads = new LinkedHashMap<>();
+        if (req == null) return uploads;
+        String contentType = req.getContentType();
+        if (contentType == null || !contentType.toLowerCase().contains("multipart/form-data")) {
+            return uploads;
+        }
+        Map<String, Integer> counters = new HashMap<>();
+        try {
+            for (Part part : req.getParts()) {
+                String filename = part.getSubmittedFileName();
+                if (filename == null) continue; // not a file part
+                String baseName = part.getName();
+                int count = counters.getOrDefault(baseName, 0);
+                counters.put(baseName, count + 1);
+                String key = (count == 0) ? baseName : baseName + "[" + count + "]";
+                try (var is = part.getInputStream()) {
+                    byte[] bytes = is.readAllBytes();
+                    uploads.put(key, bytes);
+                }
+            }
+        } catch (Exception ex) {
+            System.out.println("RequestParameterMapper: Failed to parse multipart upload -> "
+                    + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+            // best effort; leave uploads empty if parsing fails
+        }
+        return uploads;
     }
 
     private static void prebindAnnotatedFormObjects(Method method, Map<String, Object> aggregated) {
@@ -368,5 +412,26 @@ public final class RequestParameterMapper {
     private static Boolean parseBoolean(String raw, boolean primitive) {
         if (raw == null || raw.isBlank()) return primitive ? false : null;
         return Boolean.parseBoolean(raw);
+    }
+
+    private static boolean wantsByteArrayMap(Parameter parameter) {
+        if (parameter == null) return false;
+        Type type = parameter.getParameterizedType();
+        if (!(type instanceof ParameterizedType pt)) return false;
+        Type[] args = pt.getActualTypeArguments();
+        if (args.length != 2) return false;
+        if (!(args[0] instanceof Class<?> key) || !(args[1] instanceof Class<?> val)) return false;
+        boolean keyOk = String.class.equals(key);
+        boolean valOk = Byte[].class.equals(val) || byte[].class.equals(val);
+        return keyOk && valOk;
+    }
+
+    private static Byte[] toBoxed(byte[] bytes) {
+        if (bytes == null) return null;
+        Byte[] boxed = new Byte[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            boxed[i] = bytes[i];
+        }
+        return boxed;
     }
 }
