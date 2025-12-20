@@ -55,9 +55,18 @@ public class AnnotatedRouteRegistry {
                 continue;
             }
             for (Class<?> c : match.handlers) {
-                List<InvocationResult> executed =
-                        AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, req, resp);
-                batches.add(new ExecutionBatch(match.pattern, c, executed));
+                List<InvocationResult> executed = Collections.emptyList();
+                List<String> errors = new ArrayList<>();
+                try {
+                    executed = AnnotatedMethodExecutor.executeAnnotatedMethodsForPath(c, path, req, resp);
+                } catch (Throwable t) {
+                    errors.add(t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+                }
+                batches.add(new ExecutionBatch(match.pattern, c, executed, errors));
+
+                if (!errors.isEmpty()) {
+                    continue;
+                }
 
                 for (InvocationResult result : executed) {
                     Method method = result.method();
@@ -100,6 +109,15 @@ public class AnnotatedRouteRegistry {
                 if (batch.results().isEmpty()) {
                     out.println("<div style='color:orange'>No @InvokeMe method found for this path in "
                             + escapeHtml(batch.handlerClass().getName()) + "</div>");
+                    continue;
+                }
+
+                if (!batch.errors().isEmpty()) {
+                    for (String err : batch.errors()) {
+                        out.println("<div style='color:red;margin-left:20px'>Error while executing "
+                                + escapeHtml(batch.handlerClass().getName()) + ": "
+                                + escapeHtml(err) + "</div>");
+                    }
                     continue;
                 }
 
@@ -237,7 +255,7 @@ public class AnnotatedRouteRegistry {
     }
 
     private record ViewResolution(String dispatchPath) {}
-    private record ExecutionBatch(String pattern, Class<?> handlerClass, List<InvocationResult> results) {}
+    private record ExecutionBatch(String pattern, Class<?> handlerClass, List<InvocationResult> results, List<String> errors) {}
 
     // ============================================================
     //  REGISTRATION

@@ -65,6 +65,13 @@ creer une annotation @ConvertJson pour convertir le type de retour envoyer vers 
 sprint 10: 
 upload fichier, 
 ajout d'une formulaire pour l'upload fichier. 
+notre fonction associer au class controller pourra le traiter apres. 
+une ou plusieurs upload pourrais etre effectuer. 
+celui ci sera stocker dans une parametre Map donc la cle sera le name et la valeur sera le fichier
+on pourra ensuite utiliser le fichier apres dans notre fonction, genre par exemple enregistrer le fichier dans notre serveur, et prendre ensuite cettre chemin enregistrer
+methode de mise en place:
+- faire comme pour Map<String, Object> formData mais juste ici, ce sera Map<String, Byte[]> uploadData.
+
 
 
 ***********************************
