@@ -2,6 +2,9 @@ package edu.noah.monframework.util;
 
 import edu.noah.monframework.annotation.FormObject;
 import edu.noah.monframework.annotation.RequestParam;
+import edu.noah.monframework.annotation.SessionAttribute;
+import edu.noah.monframework.web.SessionContext;
+import edu.noah.monframework.web.SessionManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
@@ -52,6 +55,7 @@ public final class RequestParameterMapper {
         Map<String, String> pathVars = PathVariableExtractor.extract(requestPath, annotatedPath);
         Map<String, Object> aggregated = buildParameterMap(req, pathVars);
         Map<String, byte[]> uploadData = extractUploads(req);
+        SessionContext sessionContext = null;
         for (Map.Entry<String, byte[]> e : uploadData.entrySet()) {
             aggregated.putIfAbsent(e.getKey(), toBoxed(e.getValue()));
         }
@@ -60,6 +64,19 @@ public final class RequestParameterMapper {
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
             Class<?> type = parameter.getType();
+            SessionAttribute sessionAttr = parameter.getAnnotation(SessionAttribute.class);
+
+            if (SessionContext.class.isAssignableFrom(type)) {
+                sessionContext = ensureSession(sessionContext, req, resp, sessionAttr);
+                args[i] = sessionContext;
+                continue;
+            }
+
+            if (sessionAttr != null) {
+                sessionContext = ensureSession(sessionContext, req, resp, sessionAttr);
+                args[i] = resolveSessionValue(sessionContext, sessionAttr, parameter);
+                continue;
+            }
 
             if (HttpServletRequest.class.isAssignableFrom(type)) {
                 args[i] = req;
@@ -433,5 +450,37 @@ public final class RequestParameterMapper {
             boxed[i] = bytes[i];
         }
         return boxed;
+    }
+
+    private static SessionContext ensureSession(SessionContext current,
+                                                HttpServletRequest req,
+                                                HttpServletResponse resp,
+                                                SessionAttribute cfg) {
+        boolean create = cfg == null || cfg.create();
+        if (current != null && !current.isInvalidated()) return current;
+        return SessionManager.currentSession(req, resp, create);
+    }
+
+    private static Object resolveSessionValue(SessionContext session,
+                                              SessionAttribute cfg,
+                                              Parameter parameter) {
+        Class<?> targetType = parameter.getType();
+        if (session == null) {
+            return targetType.isPrimitive() ? convert(null, targetType) : null;
+        }
+        String key = (cfg != null && cfg.value() != null && !cfg.value().isBlank())
+                ? cfg.value()
+                : resolveName(parameter);
+        Object stored = session.getAttribute(key);
+        if (stored == null) {
+            return targetType.isPrimitive() ? convert(null, targetType) : null;
+        }
+        if (targetType.isInstance(stored)) {
+            return stored;
+        }
+        if (isSimpleType(targetType)) {
+            return convert(rawToString(stored, null), targetType);
+        }
+        return null;
     }
 }
