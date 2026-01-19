@@ -76,16 +76,15 @@ methode de mise en place:
 sprint 11
 On met en place une session et gerer cela avec notre framework au lieu d'utilsiser HTTPSession. il sera donc possible de creer, modifier, prendre et supprimer une les variable de session. une annotation dans le parametre du methode controller pourrait etre utilser pour connaitre qu'une session est utiliser. un proposition d'utilser hashmap pour la session a ete suggere mais si tu trouve une solution plus optimiser, tu peux suggerer
 
-
-contrainte et defi:
-est ce une bonne idee le fait de mettre la possibilite a la session d'etre 2 a n dimension
-
 -------------------------
 sprint 11-bis   
 il y aura 3 scenario: 
 - aucune annotion ne sera utilsier et fonctionnemnet normal comme dans sprint 11
-- une annotation authorized est utiliser pour 
-
+- une annotation @authorized est utiliser pour verifier qu'une personne est bien connecter et si il est bien connecter, c'est la qu'il peut acceder au methode controller sinon il ne pourrait pas et une message d'erreur sera afficher
+- une annotation @role sera utiliser (dont idealement celui ci sera accompagner @autorized d'abord). cette annotation permettra de verifier si l'utilsateur connecter a le role d'acceder a ce methode controller ou pas . par exemple @role("dg", "manager"). 
+- certains configuration peut etre configure dans un fichier .xml par le developpeur qui utilise mon framework. c'est a dire, dans test, il y aura un fichier .xml ou il pourra ceonfigurer les elements suivant pour que mon framework puisse le savoir: 
+    - le nom de la session utiliser pour verifier que l'utilisateur est bien connecter
+    - le nom de la session pour verifier le role de l'utilisateur
 
 ***********************************
 a faire: 
