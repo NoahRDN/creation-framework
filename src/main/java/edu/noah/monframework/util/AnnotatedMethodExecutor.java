@@ -1,6 +1,7 @@
 package edu.noah.monframework.util;
 
 import edu.noah.monframework.annotation.InvokeMe;
+import edu.noah.monframework.util.AuthGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -130,6 +131,10 @@ public class AnnotatedMethodExecutor {
             if (!candidate.supported()) {
                 invoked.add(new InvocationResult(method, null, false));
                 continue;
+            }
+            if (!AuthGuard.isAllowed(method, req, resp)) {
+                invoked.add(new InvocationResult(method, null, false));
+                break; // stop executing other methods for this path when access is denied
             }
             Object[] args = RequestParameterMapper.map(method, req, resp, path, candidate.annotatedPath());
             Object returnValue;

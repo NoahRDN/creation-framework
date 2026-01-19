@@ -64,6 +64,10 @@ public class AnnotatedRouteRegistry {
                 }
                 batches.add(new ExecutionBatch(match.pattern, c, executed, errors));
 
+                if (resp.isCommitted()) {
+                    return true; // auth or handler already wrote the response
+                }
+
                 if (!errors.isEmpty()) {
                     continue;
                 }
@@ -88,6 +92,7 @@ public class AnnotatedRouteRegistry {
             }
         }
 
+        if (resp.isCommitted()) return true;
         // No JSON handler: render HTML diagnostics or forward ModelView/String like before.
         resp.setContentType("text/html;charset=UTF-8");
         try (PrintWriter out = resp.getWriter()) {
