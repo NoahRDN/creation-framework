@@ -72,6 +72,19 @@ on pourra ensuite utiliser le fichier apres dans notre fonction, genre par exemp
 methode de mise en place:
 - faire comme pour Map<String, Object> formData mais juste ici, ce sera Map<String, Byte[]> uploadData.
 
+--------------------
+sprint 11
+On met en place une session et gerer cela avec notre framework au lieu d'utilsiser HTTPSession. il sera donc possible de creer, modifier, prendre et supprimer une les variable de session. une annotation dans le parametre du methode controller pourrait etre utilser pour connaitre qu'une session est utiliser. un proposition d'utilser hashmap pour la session a ete suggere mais si tu trouve une solution plus optimiser, tu peux suggerer
+
+
+contrainte et defi:
+est ce une bonne idee le fait de mettre la possibilite a la session d'etre 2 a n dimension
+
+-------------------------
+sprint 11-bis   
+il y aura 3 scenario: 
+- aucune annotion ne sera utilsier et fonctionnemnet normal comme dans sprint 11
+- une annotation authorized est utiliser pour 
 
 
 ***********************************
