@@ -85,6 +85,7 @@ il y aura 3 scenario:
 - certains configuration peut etre configure dans un fichier .xml par le developpeur qui utilise mon framework. c'est a dire, dans test, il y aura un fichier .xml ou il pourra ceonfigurer les elements suivant pour que mon framework puisse le savoir: 
     - le nom de la session utiliser pour verifier que l'utilisateur est bien connecter
     - le nom de la session pour verifier le role de l'utilisateur
+- Creer une class UserSession en interface et c'est le developpeur qui l'implemente dont cette interface contiendra plusieurs attribut et methode que le developpeur pourrait implementer apres. cette interface peut par exemple contenir les listes des roles, login, methode pour savoir si il est connecter par exemple. dont le variable implémenter sera stocker dans une session en tant qu'objet et puis l'utilisateur peut juste get le session de cette objet et puis utlise l'instance de cette objet apres au lieu d'avoir plusieurs getAttibut sur les information a savoir sur l'tulsiateur connecte.
 
 ***********************************
 a faire: 

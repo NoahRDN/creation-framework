@@ -11,6 +11,7 @@ import java.io.PrintWriter;
 
 import edu.noah.monframework.registry.AnnotatedRouteRegistry;
 import edu.noah.monframework.util.ResourceHelper;
+import edu.noah.monframework.web.RequestContextHolder;
 
 @WebFilter("/*")
 @MultipartConfig
@@ -45,10 +46,15 @@ public class MyFilter implements Filter {
             return; 
         }
         
-        boolean handled = AnnotatedRouteRegistry.executePath(path, req, resp);
+        try {
+            RequestContextHolder.set(req, resp);
+            boolean handled = AnnotatedRouteRegistry.executePath(path, req, resp);
 
-        if (!handled) {
-            send404(resp, path);
+            if (!handled) {
+                send404(resp, path);
+            }
+        } finally {
+            RequestContextHolder.clear();
         }
     }
 
