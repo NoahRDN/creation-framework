@@ -9,26 +9,30 @@ import java.io.InputStream;
 
 /**
  * Loads auth-related configuration from /WEB-INF/auth-config.xml when present.
- * Defaults: userKey="user", roleKey="roles".
+ * Defaults: userKey="user", roleKey="roles", userSessionKey="userSession".
  *
  * Example:
  * <auth>
  *   <session-user-key>loggedUser</session-user-key>
  *   <session-role-key>userRoles</session-role-key>
+ *   <session-user-session-key>userSession</session-user-session-key>
  * </auth>
  */
 public final class AuthConfig {
     private static final String DEFAULT_USER_KEY = "user";
     private static final String DEFAULT_ROLE_KEY = "roles";
+    private static final String DEFAULT_USER_SESSION_KEY = "userSession";
 
     private static volatile AuthConfig cached;
 
     private final String userKey;
     private final String roleKey;
+    private final String userSessionKey;
 
-    private AuthConfig(String userKey, String roleKey) {
+    private AuthConfig(String userKey, String roleKey, String userSessionKey) {
         this.userKey = userKey;
         this.roleKey = roleKey;
+        this.userSessionKey = userSessionKey;
     }
 
     public String userKey() {
@@ -37,6 +41,10 @@ public final class AuthConfig {
 
     public String roleKey() {
         return roleKey;
+    }
+
+    public String userSessionKey() {
+        return userSessionKey;
     }
 
     public static AuthConfig load(ServletContext context) {
@@ -57,12 +65,13 @@ public final class AuthConfig {
                     Element root = doc.getDocumentElement();
                     String user = text(root, "session-user-key", DEFAULT_USER_KEY);
                     String role = text(root, "session-role-key", DEFAULT_ROLE_KEY);
-                    return new AuthConfig(user, role);
+                    String userSession = text(root, "session-user-session-key", DEFAULT_USER_SESSION_KEY);
+                    return new AuthConfig(user, role, userSession);
                 }
             } catch (Exception ignored) {
             }
         }
-        return new AuthConfig(DEFAULT_USER_KEY, DEFAULT_ROLE_KEY);
+        return new AuthConfig(DEFAULT_USER_KEY, DEFAULT_ROLE_KEY, DEFAULT_USER_SESSION_KEY);
     }
 
     private static String text(Element root, String tag, String fallback) {

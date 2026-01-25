@@ -4,6 +4,8 @@ import edu.noah.monframework.annotation.Authorized;
 import edu.noah.monframework.annotation.Role;
 import edu.noah.monframework.web.SessionContext;
 import edu.noah.monframework.web.SessionManager;
+import edu.noah.monframework.web.UserSession;
+import edu.noah.monframework.web.RequestContextHolder;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,24 +30,34 @@ public final class AuthGuard {
         // No security annotations -> allow
         if (auth == null && role == null) return true;
 
+        if (req == null) req = RequestContextHolder.request();
+        if (resp == null) resp = RequestContextHolder.response();
         if (req == null || resp == null) return true; // cannot enforce without context
 
         ServletContext ctx = req.getServletContext();
         AuthConfig cfg = AuthConfig.load(ctx);
         SessionContext session = SessionManager.currentSession(req, resp, false);
 
+        UserSession userSession = session != null
+                ? session.getAttribute(cfg.userSessionKey(), UserSession.class)
+                : null;
+
         // Authentication
-        Object user = session != null ? session.getAttribute(cfg.userKey()) : null;
-        if (auth != null && user == null) {
-            render(resp, HttpServletResponse.SC_UNAUTHORIZED,
-                    auth.message() + " (clé: " + cfg.userKey() + ")");
-            return false;
+        if (auth != null) {
+            boolean connected = userSession != null ? userSession.isConnected()
+                    : session != null && session.getAttribute(cfg.userKey()) != null;
+            if (!connected) {
+                render(resp, HttpServletResponse.SC_UNAUTHORIZED,
+                        auth.message() + " (clé: " + cfg.userSessionKey() + ")");
+                return false;
+            }
         }
 
         // Role check
         if (role != null) {
-            Object rolesObj = session != null ? session.getAttribute(cfg.roleKey()) : null;
-            if (!hasRequiredRole(rolesObj, role.value())) {
+            Object rolesObj = userSession != null ? userSession.getRoles()
+                    : session != null ? session.getAttribute(cfg.roleKey()) : null;
+            if (!hasRequiredRole(rolesObj, role.value(), userSession)) {
                 render(resp, HttpServletResponse.SC_FORBIDDEN,
                         role.message() + " (clé: " + cfg.roleKey() + ")");
                 return false;
@@ -55,8 +67,14 @@ public final class AuthGuard {
         return true;
     }
 
-    private static boolean hasRequiredRole(Object rolesObj, String[] required) {
+    private static boolean hasRequiredRole(Object rolesObj, String[] required, UserSession userSession) {
         if (required == null || required.length == 0) return true;
+        if (userSession != null) {
+            for (String r : required) {
+                if (userSession.hasRole(r)) return true;
+            }
+            return false;
+        }
         if (rolesObj == null) return false;
 
         Set<String> wanted = new HashSet<>();

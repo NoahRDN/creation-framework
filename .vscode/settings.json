@@ -1,3 +1,4 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.jdt.ls.vmargs": "-Xms100m -Xmx1024m -XX:+UseParallelGC -Dsun.zip.disableMemoryMapping=true"
 }
